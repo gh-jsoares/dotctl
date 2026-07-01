@@ -1,0 +1,91 @@
+package orchestrator
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/gh-jsoares/dotctl/internal/config"
+)
+
+type Step struct {
+	Name    string
+	Run     func(cfg *config.Config) error
+	Enabled func(cfg *config.Config) bool
+}
+
+func NixDarwinSwitch(cfg *config.Config) error {
+	flakePath := cfg.Dotfiles.Path
+	flakeFile := filepath.Join(flakePath, "flake.nix")
+
+	if _, err := os.Stat(flakeFile); err != nil {
+		return fmt.Errorf("no flake.nix found at %s (skipping nix-darwin)", flakePath)
+	}
+
+	hostname, _ := os.Hostname()
+	ref := fmt.Sprintf("%s#%s", flakePath, hostname)
+
+	cmd := exec.Command("darwin-rebuild", "switch", "--flake", ref)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func StowAll(cfg *config.Config) error {
+	stowDir := filepath.Join(cfg.Dotfiles.Path, "stow")
+	if _, err := os.Stat(stowDir); err != nil {
+		return fmt.Errorf("no stow/ directory found at %s (skipping)", stowDir)
+	}
+
+	entries, err := os.ReadDir(stowDir)
+	if err != nil {
+		return err
+	}
+
+	packages := []string{}
+	for _, e := range entries {
+		if e.IsDir() && !isHidden(e.Name()) {
+			packages = append(packages, e.Name())
+		}
+	}
+
+	if len(packages) == 0 {
+		return nil
+	}
+
+	home, _ := os.UserHomeDir()
+	args := append([]string{"-R", "-d", stowDir, "-t", home}, packages...)
+	cmd := exec.Command("stow", args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func MiseInstall(cfg *config.Config) error {
+	cmd := exec.Command("mise", "install")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func HasFlake(cfg *config.Config) bool {
+	flakeFile := filepath.Join(cfg.Dotfiles.Path, "flake.nix")
+	_, err := os.Stat(flakeFile)
+	return err == nil
+}
+
+func HasStow(cfg *config.Config) bool {
+	stowDir := filepath.Join(cfg.Dotfiles.Path, "stow")
+	_, err := os.Stat(stowDir)
+	return err == nil
+}
+
+func HasMise(_ *config.Config) bool {
+	_, err := exec.LookPath("mise")
+	return err == nil
+}
+
+func isHidden(name string) bool {
+	return len(name) > 0 && name[0] == '.'
+}
