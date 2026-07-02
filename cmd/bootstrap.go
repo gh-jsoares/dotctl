@@ -1,12 +1,23 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/gh-jsoares/dotctl/internal/bootstrap"
 	"github.com/gh-jsoares/dotctl/internal/config"
 	"github.com/spf13/cobra"
+)
+
+var (
+	bootstrapDotfilesRemote string
+	bootstrapDotctlRemote   string
+	bootstrapDotfilesPath   string
+	bootstrapDotctlPath     string
+	bootstrapDefaultCtx     string
 )
 
 var bootstrapCmd = &cobra.Command{
@@ -18,6 +29,11 @@ var bootstrapCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(bootstrapCmd)
+	bootstrapCmd.Flags().StringVar(&bootstrapDotfilesRemote, "dotfiles-remote", "", "git remote for dotfiles repo")
+	bootstrapCmd.Flags().StringVar(&bootstrapDotctlRemote, "dotctl-remote", "", "git remote for dotctl repo")
+	bootstrapCmd.Flags().StringVar(&bootstrapDotfilesPath, "dotfiles-path", "", "local path for dotfiles repo")
+	bootstrapCmd.Flags().StringVar(&bootstrapDotctlPath, "dotctl-path", "", "local path for dotctl repo")
+	bootstrapCmd.Flags().StringVar(&bootstrapDefaultCtx, "default-context", "personal", "default context to set after bootstrap")
 }
 
 func runBootstrap(cmd *cobra.Command, args []string) error {
@@ -27,19 +43,32 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 
 	opts := &bootstrap.Options{
-		DotfilesRemote: cfg.Dotfiles.Remote,
-		DotctlRemote:   cfg.Dotctl.Remote,
-		DotfilesPath:   cfg.Dotfiles.Path,
-		DotctlPath:     cfg.Dotctl.Path,
+		DotfilesRemote: coalesce(bootstrapDotfilesRemote, cfg.Dotfiles.Remote),
+		DotctlRemote:   coalesce(bootstrapDotctlRemote, cfg.Dotctl.Remote),
+		DotfilesPath:   coalesce(bootstrapDotfilesPath, cfg.Dotfiles.Path),
+		DotctlPath:     coalesce(bootstrapDotctlPath, cfg.Dotctl.Path),
 		SSHHosts:       cfg.SSH.Hosts,
-		DefaultContext: "personal",
+		DefaultContext: bootstrapDefaultCtx,
 	}
 
+	// Interactive prompts for missing required values
+	reader := bufio.NewReader(os.Stdin)
 	if opts.DotfilesRemote == "" {
-		return fmt.Errorf("dotfiles.remote not configured in %s", config.DefaultConfigPath())
+		opts.DotfilesRemote, err = prompt(reader, "Dotfiles git remote URL")
+		if err != nil {
+			return err
+		}
 	}
 	if opts.DotctlRemote == "" {
-		return fmt.Errorf("dotctl.remote not configured in %s", config.DefaultConfigPath())
+		opts.DotctlRemote, err = prompt(reader, "Dotctl git remote URL")
+		if err != nil {
+			return err
+		}
+	}
+
+	// Write config file if it doesn't exist (so future runs don't prompt again)
+	if err := maybeWriteConfig(cfg, opts); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠ could not save config: %v\n", err)
 	}
 
 	steps := bootstrap.Steps()
@@ -74,4 +103,55 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(os.Stdout, "\nBootstrap complete.")
 	fmt.Fprintln(os.Stdout, "Run 'eval \"$(dotctl shell-init zsh)\"' or restart your shell.")
 	return nil
+}
+
+func prompt(reader *bufio.Reader, label string) (string, error) {
+	fmt.Fprintf(os.Stdout, "  %s: ", label)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	val := strings.TrimSpace(line)
+	if val == "" {
+		return "", fmt.Errorf("%s is required", label)
+	}
+	return val, nil
+}
+
+func coalesce(values ...string) string {
+	for _, v := range values {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+func maybeWriteConfig(cfg *config.Config, opts *bootstrap.Options) error {
+	configPath := config.DefaultConfigPath()
+	if _, err := os.Stat(configPath); err == nil {
+		return nil
+	}
+
+	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
+		return err
+	}
+
+	content := fmt.Sprintf(`[dotfiles]
+path = %q
+remote = %q
+
+[dotctl]
+path = %q
+remote = %q
+`, opts.DotfilesPath, opts.DotfilesRemote, opts.DotctlPath, opts.DotctlRemote)
+
+	if len(opts.SSHHosts) > 0 {
+		content += "\n[ssh.hosts]\n"
+		for k, v := range opts.SSHHosts {
+			content += fmt.Sprintf("%s = %q\n", k, v)
+		}
+	}
+
+	return os.WriteFile(configPath, []byte(content), 0o644)
 }

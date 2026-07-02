@@ -115,7 +115,7 @@ func checkSymlinks() error {
 }
 
 func checkTools() error {
-	tools := []string{"nix", "stow", "mise", "tmux", "git", "op"}
+	tools := []string{"nix", "darwin-rebuild", "stow", "mise", "tmux", "git", "op"}
 	missing := []string{}
 
 	for _, tool := range tools {

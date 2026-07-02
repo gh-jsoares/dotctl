@@ -94,6 +94,26 @@ func (m *Manager) EnvFilePath() string {
 	return filepath.Join(m.stateDir, "env")
 }
 
+func (m *Manager) List() ([]string, error) {
+	dir := filepath.Join(m.cfg.Dotfiles.Path, "contexts")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var names []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
+			continue
+		}
+		names = append(names, strings.TrimSuffix(e.Name(), ".toml"))
+	}
+	return names, nil
+}
+
 func (m *Manager) Load(name string) (*ContextDef, error) {
 	path := filepath.Join(m.cfg.Dotfiles.Path, "contexts", name+".toml")
 	var ctx ContextDef

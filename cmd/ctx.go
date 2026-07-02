@@ -29,10 +29,17 @@ var ctxCurrentCmd = &cobra.Command{
 	RunE:  runCtxCurrent,
 }
 
+var ctxListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List available contexts",
+	RunE:  runCtxList,
+}
+
 func init() {
 	rootCmd.AddCommand(ctxCmd)
 	ctxCmd.AddCommand(ctxDefaultCmd)
 	ctxCmd.AddCommand(ctxCurrentCmd)
+	ctxCmd.AddCommand(ctxListCmd)
 }
 
 func runCtx(cmd *cobra.Command, args []string) error {
@@ -67,6 +74,33 @@ func runCtxDefault(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Fprintf(os.Stdout, "Default context set to: %s\n", name)
+	return nil
+}
+
+func runCtxList(cmd *cobra.Command, args []string) error {
+	mgr, err := context.NewManager()
+	if err != nil {
+		return err
+	}
+
+	current, _ := mgr.Current()
+	names, err := mgr.List()
+	if err != nil {
+		return err
+	}
+
+	if len(names) == 0 {
+		fmt.Fprintln(os.Stdout, "No contexts found.")
+		return nil
+	}
+
+	for _, name := range names {
+		if name == current {
+			fmt.Fprintf(os.Stdout, "* %s (active)\n", name)
+		} else {
+			fmt.Fprintf(os.Stdout, "  %s\n", name)
+		}
+	}
 	return nil
 }
 
