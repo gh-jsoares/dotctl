@@ -107,7 +107,7 @@ Self-update the binary.
 ```
 dotctl update                         # download latest release from GitHub
 dotctl update --from-source           # git pull + go build (from current dir)
-dotctl update --from-source --source-path ~/dotfilesv2/dotctl
+dotctl update --from-source --source-path /opt/dotctl
 ```
 
 Release-based update requires `dotctl.remote` in config (owner/repo are parsed from the URL). Source-based update defaults to the current directory.

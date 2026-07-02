@@ -10,7 +10,7 @@ Location: `~/.config/dotctl/config.toml` (or `$XDG_CONFIG_HOME/dotctl/config.tom
 machine = "personal-mbp"
 
 [dotfiles]
-path = "~/dotfilesv2/dotfiles"
+path = "~/dotfiles"
 remote = "git@personal.github.com:youruser/dotfiles.git"
 
 [dotctl]

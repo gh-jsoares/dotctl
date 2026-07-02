@@ -4,7 +4,7 @@
 machine = "personal-mbp"
 
 [dotfiles]
-path = "~/dotfilesv2/dotfiles"
+path = "~/dotfiles"
 remote = "git@personal.github.com:youruser/dotfiles.git"
 
 [dotctl]
