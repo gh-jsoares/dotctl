@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gh-jsoares/dotctl/internal/context"
 )
@@ -55,6 +56,16 @@ func stepXcode(opts *Options, _ *bufio.Reader) error {
 			return nil
 		}
 		return err
+	}
+
+	// xcode-select --install returns immediately but downloads in background.
+	// Wait for it to finish before proceeding (avoids bandwidth contention).
+	fmt.Println("  Waiting for Xcode CLI tools installation to complete...")
+	for {
+		if exec.Command("xcode-select", "-p").Run() == nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
 	}
 	return nil
 }
