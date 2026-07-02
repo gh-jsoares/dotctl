@@ -40,13 +40,7 @@ path = "~/my-dotfiles"
 remote = "git@github.com:user/dotfiles.git"
 
 [dotctl]
-path = "~/my-dotctl"
-repo_owner = "testuser"
-repo_name = "dotctl"
-
-[ssh.hosts]
-personal = "personal.github.com"
-work = "work.github.com"
+remote = "git@github.com:testuser/dotctl.git"
 
 [[guards]]
 command = "terraform"
@@ -67,11 +61,8 @@ message = "terraform targets work infra"
 	if cfg.Dotfiles.Path != filepath.Join(dir, "my-dotfiles") {
 		t.Errorf("dotfiles.path: got %q", cfg.Dotfiles.Path)
 	}
-	if cfg.Dotctl.RepoOwner != "testuser" {
-		t.Errorf("dotctl.repo_owner: got %q", cfg.Dotctl.RepoOwner)
-	}
-	if cfg.SSH.Hosts["personal"] != "personal.github.com" {
-		t.Errorf("ssh.hosts.personal: got %q", cfg.SSH.Hosts["personal"])
+	if cfg.Dotctl.Remote != "git@github.com:testuser/dotctl.git" {
+		t.Errorf("dotctl.remote: got %q", cfg.Dotctl.Remote)
 	}
 	if len(cfg.Guards) != 1 || cfg.Guards[0].Command != "terraform" {
 		t.Errorf("guards: got %+v", cfg.Guards)

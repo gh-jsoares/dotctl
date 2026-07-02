@@ -13,7 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var updateFromSource bool
+var (
+	updateFromSource bool
+	updateSourcePath string
+)
 
 var updateCmd = &cobra.Command{
 	Use:   "update",
@@ -25,6 +28,7 @@ var updateCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(updateCmd)
 	updateCmd.Flags().BoolVar(&updateFromSource, "from-source", false, "rebuild from source (git pull + go build) instead of downloading release")
+	updateCmd.Flags().StringVar(&updateSourcePath, "source-path", ".", "path to dotctl source repo (used with --from-source)")
 }
 
 func runUpdate(cmd *cobra.Command, args []string) error {
@@ -40,10 +44,12 @@ func updateRelease() error {
 		return err
 	}
 
-	owner := cfg.Dotctl.RepoOwner
-	repo := cfg.Dotctl.RepoName
+	if cfg.Dotctl.Remote == "" {
+		return fmt.Errorf("dotctl.remote must be set in %s", config.DefaultConfigPath())
+	}
+	owner, repo := parseGitRemote(cfg.Dotctl.Remote)
 	if owner == "" || repo == "" {
-		return fmt.Errorf("dotctl.repo_owner and dotctl.repo_name must be set in %s", config.DefaultConfigPath())
+		return fmt.Errorf("could not parse owner/repo from dotctl.remote %q", cfg.Dotctl.Remote)
 	}
 
 	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo)
@@ -121,18 +127,8 @@ func updateRelease() error {
 }
 
 func updateSource() error {
-	cfg, err := config.Load()
-	if err != nil {
-		return err
-	}
-
-	dotctlPath := cfg.Dotctl.Path
-	if dotctlPath == "" {
-		return fmt.Errorf("dotctl.path not configured — set it in ~/.config/dotctl/config.toml")
-	}
-
 	fmt.Println("Pulling latest source...")
-	pull := exec.Command("git", "-C", dotctlPath, "pull", "--ff-only")
+	pull := exec.Command("git", "-C", updateSourcePath, "pull", "--ff-only")
 	pull.Stdout = os.Stdout
 	pull.Stderr = os.Stderr
 	if err := pull.Run(); err != nil {
@@ -146,7 +142,7 @@ func updateSource() error {
 
 	fmt.Println("Building...")
 	build := exec.Command("go", "build", "-o", currentBin, ".")
-	build.Dir = dotctlPath
+	build.Dir = updateSourcePath
 	build.Stdout = os.Stdout
 	build.Stderr = os.Stderr
 	if err := build.Run(); err != nil {

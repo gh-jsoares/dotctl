@@ -13,9 +13,7 @@ import (
 
 type Options struct {
 	DotfilesRemote string
-	DotctlRemote   string
 	DotfilesPath   string
-	DotctlPath     string
 	DefaultContext string
 }
 
@@ -37,7 +35,6 @@ func Steps() []Step {
 		{"Nix", stepNix, nixInstalled},
 		{"Pre-clone SSH setup", stepPreCloneSSH, nil},
 		{"Clone dotfiles repo", stepCloneDotfiles, dotfilesCloned},
-		{"Clone dotctl repo", stepCloneDotctl, dotctlCloned},
 		{"nix-darwin switch", stepNixDarwinSwitch, noFlake},
 		{"Post-clone SSH setup (from contexts)", stepPostCloneSSH, nil},
 		{"Create context directories", stepCreateContextDirs, nil},
@@ -135,21 +132,6 @@ func stepCloneDotfiles(opts *Options, _ *bufio.Reader) error {
 
 func dotfilesCloned(opts *Options) bool {
 	_, err := os.Stat(filepath.Join(opts.DotfilesPath, ".git"))
-	return err == nil
-}
-
-func stepCloneDotctl(opts *Options, _ *bufio.Reader) error {
-	if err := os.MkdirAll(filepath.Dir(opts.DotctlPath), 0o755); err != nil {
-		return err
-	}
-	cmd := exec.Command("git", "clone", opts.DotctlRemote, opts.DotctlPath)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func dotctlCloned(opts *Options) bool {
-	_, err := os.Stat(filepath.Join(opts.DotctlPath, ".git"))
 	return err == nil
 }
 

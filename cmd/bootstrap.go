@@ -14,9 +14,7 @@ import (
 
 var (
 	bootstrapDotfilesRemote string
-	bootstrapDotctlRemote   string
 	bootstrapDotfilesPath   string
-	bootstrapDotctlPath     string
 	bootstrapDefaultCtx     string
 )
 
@@ -30,9 +28,7 @@ var bootstrapCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(bootstrapCmd)
 	bootstrapCmd.Flags().StringVar(&bootstrapDotfilesRemote, "dotfiles-remote", "", "git remote for dotfiles repo")
-	bootstrapCmd.Flags().StringVar(&bootstrapDotctlRemote, "dotctl-remote", "", "git remote for dotctl repo")
 	bootstrapCmd.Flags().StringVar(&bootstrapDotfilesPath, "dotfiles-path", "", "local path for dotfiles repo")
-	bootstrapCmd.Flags().StringVar(&bootstrapDotctlPath, "dotctl-path", "", "local path for dotctl repo")
 	bootstrapCmd.Flags().StringVar(&bootstrapDefaultCtx, "default-context", "personal", "default context to set after bootstrap")
 }
 
@@ -44,9 +40,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 
 	opts := &bootstrap.Options{
 		DotfilesRemote: coalesce(bootstrapDotfilesRemote, cfg.Dotfiles.Remote),
-		DotctlRemote:   coalesce(bootstrapDotctlRemote, cfg.Dotctl.Remote),
 		DotfilesPath:   coalesce(bootstrapDotfilesPath, cfg.Dotfiles.Path),
-		DotctlPath:     coalesce(bootstrapDotctlPath, cfg.Dotctl.Path),
 		DefaultContext: bootstrapDefaultCtx,
 	}
 
@@ -54,12 +48,6 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	reader := bufio.NewReader(os.Stdin)
 	if opts.DotfilesRemote == "" {
 		opts.DotfilesRemote, err = prompt(reader, "Dotfiles git remote URL")
-		if err != nil {
-			return err
-		}
-	}
-	if opts.DotctlRemote == "" {
-		opts.DotctlRemote, err = prompt(reader, "Dotctl git remote URL")
 		if err != nil {
 			return err
 		}
@@ -155,18 +143,10 @@ func maybeWriteConfig(cfg *config.Config, opts *bootstrap.Options) error {
 		return err
 	}
 
-	owner, repo := parseGitRemote(opts.DotctlRemote)
-
 	content := fmt.Sprintf(`[dotfiles]
 path = %q
 remote = %q
-
-[dotctl]
-path = %q
-remote = %q
-repo_owner = %q
-repo_name = %q
-`, opts.DotfilesPath, opts.DotfilesRemote, opts.DotctlPath, opts.DotctlRemote, owner, repo)
+`, opts.DotfilesPath, opts.DotfilesRemote)
 
 	return os.WriteFile(configPath, []byte(content), 0o644)
 }

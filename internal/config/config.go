@@ -10,7 +10,6 @@ import (
 type Config struct {
 	Dotfiles DotfilesConfig `toml:"dotfiles"`
 	Dotctl   DotctlConfig   `toml:"dotctl"`
-	SSH      SSHConfig      `toml:"ssh"`
 	Machine  string         `toml:"machine"`
 	Guards   []GuardConfig  `toml:"guards"`
 }
@@ -21,14 +20,7 @@ type DotfilesConfig struct {
 }
 
 type DotctlConfig struct {
-	Path      string `toml:"path"`
-	Remote    string `toml:"remote"`
-	RepoOwner string `toml:"repo_owner"`
-	RepoName  string `toml:"repo_name"`
-}
-
-type SSHConfig struct {
-	Hosts map[string]string `toml:"hosts"`
+	Remote string `toml:"remote"`
 }
 
 type GuardConfig struct {
@@ -61,7 +53,6 @@ func Load() (*Config, error) {
 	}
 
 	cfg.Dotfiles.Path = expandPath(cfg.Dotfiles.Path)
-	cfg.Dotctl.Path = expandPath(cfg.Dotctl.Path)
 	return cfg, nil
 }
 

@@ -8,10 +8,7 @@ path = "~/dotfilesv2/dotfiles"
 remote = "git@personal.github.com:youruser/dotfiles.git"
 
 [dotctl]
-path = "~/dotfilesv2/dotctl"
 remote = "git@personal.github.com:youruser/dotctl.git"
-repo_owner = "youruser"
-repo_name = "dotctl"
 
 # Context-guarded commands
 # These generate shell wrappers that warn when run outside the specified context.
@@ -19,7 +16,7 @@ repo_name = "dotctl"
 [[guards]]
 command = "awscreds"
 context = "work"
-message = "Running awscreds will write to your current context's AWS/kube/docker config."
+message = "awscreds writes to AWS/kube/docker config for the active context."
 
 [[guards]]
 command = "kubectl"
