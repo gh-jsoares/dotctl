@@ -40,7 +40,7 @@ Each tool has a single responsibility. dotctl doesn't replace any of them — it
 ### Fresh machine (from nothing)
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/OWNER/dotctl/main/install.sh | bash
+curl -sSf https://raw.githubusercontent.com/gh-jsoares/dotctl/main/install.sh | bash
 dotctl bootstrap
 ```
 
@@ -66,7 +66,7 @@ dotctl sync
 ### From release (recommended)
 
 ```bash
-curl -sSf https://raw.githubusercontent.com/OWNER/dotctl/main/install.sh | bash
+curl -sSf https://raw.githubusercontent.com/gh-jsoares/dotctl/main/install.sh | bash
 ```
 
 The install script detects your OS/arch, downloads the binary, and places it in `/usr/local/bin`.
@@ -74,7 +74,7 @@ The install script detects your OS/arch, downloads the binary, and places it in 
 ### From source
 
 ```bash
-git clone git@github.com:OWNER/dotctl.git
+git clone git@github.com:gh-jsoares/dotctl.git
 cd dotctl
 make install  # builds and copies to ~/.local/bin/
 ```
