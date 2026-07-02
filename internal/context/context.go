@@ -11,10 +11,17 @@ import (
 )
 
 type ContextDef struct {
-	Identity IdentityConfig        `toml:"identity"`
-	Symlinks map[string]string     `toml:"symlinks"`
-	Env      map[string]string     `toml:"env"`
-	Lazy map[string]string `toml:"env.lazy"`
+	SSH      SSHConfig         `toml:"ssh"`
+	Identity IdentityConfig    `toml:"identity"`
+	Symlinks map[string]string `toml:"symlinks"`
+	Env      map[string]string `toml:"env"`
+	Lazy     map[string]string `toml:"lazy"`
+}
+
+type SSHConfig struct {
+	Host       string `toml:"host"`
+	GitHubUser string `toml:"github_user"`
+	KeySource  string `toml:"key_source"`
 }
 
 type IdentityConfig struct {
@@ -22,9 +29,12 @@ type IdentityConfig struct {
 	SSHKey    string `toml:"ssh_key"`
 }
 
+type SecretResolver func(ref string) (string, error)
+
 type Manager struct {
-	cfg      *config.Config
-	stateDir string
+	cfg            *config.Config
+	stateDir       string
+	ResolveSecret  SecretResolver
 }
 
 func NewManager() (*Manager, error) {
@@ -48,7 +58,7 @@ func (m *Manager) Switch(name string) error {
 	}
 
 	current, _ := m.Current()
-	if current == name {
+	if current == name && m.stateIsConsistent(ctx) {
 		return nil
 	}
 
@@ -123,6 +133,21 @@ func (m *Manager) Load(name string) (*ContextDef, error) {
 	return &ctx, nil
 }
 
+func (m *Manager) stateIsConsistent(ctx *ContextDef) bool {
+	if _, err := os.Stat(m.EnvFilePath()); err != nil {
+		return false
+	}
+	home, _ := os.UserHomeDir()
+	for link := range ctx.Symlinks {
+		link = expandHome(link, home)
+		info, err := os.Lstat(link)
+		if err != nil || info.Mode()&os.ModeSymlink == 0 {
+			return false
+		}
+	}
+	return true
+}
+
 func (m *Manager) applySymlinks(ctx *ContextDef) error {
 	home, _ := os.UserHomeDir()
 
@@ -167,7 +192,19 @@ func (m *Manager) generateEnvFile(name string, ctx *ContextDef) error {
 		b.WriteString(fmt.Sprintf("export %s=%q\n", k, v))
 	}
 
-	return os.WriteFile(m.EnvFilePath(), []byte(b.String()), 0o644)
+	// Resolve lazy secrets and cache them
+	if len(ctx.Lazy) > 0 && m.ResolveSecret != nil {
+		for k, ref := range ctx.Lazy {
+			val, err := m.ResolveSecret(ref)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  ⚠ %s: %v (skipped)\n", k, err)
+				continue
+			}
+			b.WriteString(fmt.Sprintf("export %s=%q\n", k, val))
+		}
+	}
+
+	return os.WriteFile(m.EnvFilePath(), []byte(b.String()), 0o600)
 }
 
 func (m *Manager) writeCurrentContext(name string) error {

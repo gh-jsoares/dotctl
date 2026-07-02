@@ -47,7 +47,6 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		DotctlRemote:   coalesce(bootstrapDotctlRemote, cfg.Dotctl.Remote),
 		DotfilesPath:   coalesce(bootstrapDotfilesPath, cfg.Dotfiles.Path),
 		DotctlPath:     coalesce(bootstrapDotctlPath, cfg.Dotctl.Path),
-		SSHHosts:       cfg.SSH.Hosts,
 		DefaultContext: bootstrapDefaultCtx,
 	}
 
@@ -79,7 +78,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Fprintf(os.Stdout, "▸ %s\n", step.Name)
-		if err := step.Fn(opts); err != nil {
+		if err := step.Fn(opts, reader); err != nil {
 			return fmt.Errorf("%s: %w", step.Name, err)
 		}
 		fmt.Fprintf(os.Stdout, "✓ %s\n\n", step.Name)
@@ -127,6 +126,25 @@ func coalesce(values ...string) string {
 	return ""
 }
 
+func parseGitRemote(remote string) (owner, repo string) {
+	// Handle git@host:owner/repo.git and https://host/owner/repo.git
+	remote = strings.TrimSuffix(remote, ".git")
+	if idx := strings.LastIndex(remote, ":"); idx != -1 && !strings.Contains(remote, "://") {
+		remote = remote[idx+1:]
+	} else if idx := strings.LastIndex(remote, "/"); idx != -1 {
+		// Take last two path components
+		parts := strings.Split(remote, "/")
+		if len(parts) >= 2 {
+			return parts[len(parts)-2], parts[len(parts)-1]
+		}
+	}
+	parts := strings.Split(remote, "/")
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return "", ""
+}
+
 func maybeWriteConfig(cfg *config.Config, opts *bootstrap.Options) error {
 	configPath := config.DefaultConfigPath()
 	if _, err := os.Stat(configPath); err == nil {
@@ -137,6 +155,8 @@ func maybeWriteConfig(cfg *config.Config, opts *bootstrap.Options) error {
 		return err
 	}
 
+	owner, repo := parseGitRemote(opts.DotctlRemote)
+
 	content := fmt.Sprintf(`[dotfiles]
 path = %q
 remote = %q
@@ -144,14 +164,9 @@ remote = %q
 [dotctl]
 path = %q
 remote = %q
-`, opts.DotfilesPath, opts.DotfilesRemote, opts.DotctlPath, opts.DotctlRemote)
-
-	if len(opts.SSHHosts) > 0 {
-		content += "\n[ssh.hosts]\n"
-		for k, v := range opts.SSHHosts {
-			content += fmt.Sprintf("%s = %q\n", k, v)
-		}
-	}
+repo_owner = %q
+repo_name = %q
+`, opts.DotfilesPath, opts.DotfilesRemote, opts.DotctlPath, opts.DotctlRemote, owner, repo)
 
 	return os.WriteFile(configPath, []byte(content), 0o644)
 }

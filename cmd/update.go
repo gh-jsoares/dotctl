@@ -94,6 +94,10 @@ func updateRelease() error {
 	}
 	defer dlResp.Body.Close()
 
+	if dlResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed: HTTP %d", dlResp.StatusCode)
+	}
+
 	tmpFile := currentBin + ".new"
 	f, err := os.OpenFile(tmpFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
 	if err != nil {

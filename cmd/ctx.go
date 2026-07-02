@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/gh-jsoares/dotctl/internal/context"
+	"github.com/gh-jsoares/dotctl/internal/secrets"
 	"github.com/spf13/cobra"
 )
 
@@ -52,6 +53,9 @@ func runCtx(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	provider := secrets.DefaultProvider()
+	mgr.ResolveSecret = provider.Get
 
 	if err := mgr.Switch(name); err != nil {
 		return err

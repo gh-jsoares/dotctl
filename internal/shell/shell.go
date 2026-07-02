@@ -61,6 +61,7 @@ func generateGuards(guards []config.GuardConfig) string {
 		if msg == "" {
 			msg = fmt.Sprintf("Running %s outside '%s' context.", g.Command, g.Context)
 		}
+		safeMsg := strings.ReplaceAll(msg, "'", "'\\''")
 
 		b.WriteString(fmt.Sprintf(`function %s() {
   local current=""
@@ -80,7 +81,7 @@ func generateGuards(guards []config.GuardConfig) string {
   command %s "$@"
 }
 
-`, g.Command, g.Context, msg, g.Command))
+`, g.Command, g.Context, safeMsg, g.Command))
 	}
 
 	return b.String()

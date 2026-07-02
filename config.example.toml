@@ -13,10 +13,6 @@ remote = "git@personal.github.com:youruser/dotctl.git"
 repo_owner = "youruser"
 repo_name = "dotctl"
 
-[ssh.hosts]
-personal = "personal.github.com"
-work = "work.github.com"
-
 # Context-guarded commands
 # These generate shell wrappers that warn when run outside the specified context.
 

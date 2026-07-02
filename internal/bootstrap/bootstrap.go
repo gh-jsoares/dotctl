@@ -1,10 +1,14 @@
 package bootstrap
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+
+	"github.com/gh-jsoares/dotctl/internal/context"
 )
 
 type Options struct {
@@ -12,32 +16,39 @@ type Options struct {
 	DotctlRemote   string
 	DotfilesPath   string
 	DotctlPath     string
-	SSHHosts       map[string]string
 	DefaultContext string
+}
+
+// PreCloneInfo is gathered interactively before repos are cloned
+type PreCloneInfo struct {
+	KeyLabel string
+	Host     string
 }
 
 type Step struct {
 	Name string
-	Fn   func(opts *Options) error
+	Fn   func(opts *Options, reader *bufio.Reader) error
 	Skip func(opts *Options) bool
 }
 
 func Steps() []Step {
 	return []Step{
-		{"Xcode CLI tools", installXcode, xcodeInstalled},
-		{"Nix", installNix, nixInstalled},
-		{"1Password CLI", installOPCLI, opInstalled},
-		{"SSH keys from 1Password", setupSSHKeys, nil},
-		{"Clone dotfiles repo", cloneDotfiles, dotfilesCloned},
-		{"Clone dotctl repo", cloneDotctl, dotctlCloned},
-		{"Create context directories", createContextDirs, nil},
-		{"nix-darwin switch", nixDarwinSwitch, noFlake},
-		{"Stow dotfiles", stowDotfiles, noStowDir},
-		{"mise install", miseInstall, miseNotAvailable},
+		{"Xcode CLI tools", stepXcode, xcodeInstalled},
+		{"Nix", stepNix, nixInstalled},
+		{"Pre-clone SSH setup", stepPreCloneSSH, nil},
+		{"Clone dotfiles repo", stepCloneDotfiles, dotfilesCloned},
+		{"Clone dotctl repo", stepCloneDotctl, dotctlCloned},
+		{"nix-darwin switch", stepNixDarwinSwitch, noFlake},
+		{"Post-clone SSH setup (from contexts)", stepPostCloneSSH, nil},
+		{"Create context directories", stepCreateContextDirs, nil},
+		{"Stow dotfiles", stepStowDotfiles, noStowDir},
+		{"mise install", stepMiseInstall, miseNotAvailable},
 	}
 }
 
-func installXcode(_ *Options) error {
+// --- Step implementations ---
+
+func stepXcode(opts *Options, _ *bufio.Reader) error {
 	cmd := exec.Command("xcode-select", "--install")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -55,7 +66,7 @@ func xcodeInstalled(_ *Options) bool {
 	return exec.Command("xcode-select", "-p").Run() == nil
 }
 
-func installNix(_ *Options) error {
+func stepNix(opts *Options, _ *bufio.Reader) error {
 	cmd := exec.Command("bash", "-c", "curl --proto '=https' --tlsv1.2 -sSf -L https://install.determinate.systems/nix | sh -s -- install --no-confirm")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -68,55 +79,51 @@ func nixInstalled(_ *Options) bool {
 	return err == nil
 }
 
-func installOPCLI(_ *Options) error {
-	if _, err := exec.LookPath("brew"); err != nil {
-		return fmt.Errorf("homebrew not available; install 1Password CLI manually")
+func stepPreCloneSSH(opts *Options, reader *bufio.Reader) error {
+	// Check if repos are already cloned — if so, skip pre-clone SSH
+	if dotfilesCloned(opts) {
+		fmt.Println("  Repos already cloned, skipping pre-clone SSH.")
+		return nil
 	}
-	cmd := exec.Command("brew", "install", "--cask", "1password-cli")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
 
-func opInstalled(_ *Options) bool {
-	_, err := exec.LookPath("op")
-	return err == nil
-}
+	// We need at least one SSH key to clone. Ask user for the minimal info.
+	fmt.Println("  SSH key needed to clone repos from GitHub.")
+	fmt.Println("")
 
-func setupSSHKeys(opts *Options) error {
+	label, err := promptLine(reader, "  SSH key label (e.g., personal)")
+	if err != nil {
+		return err
+	}
+
+	host, err := promptLine(reader, "  GitHub host alias (e.g., personal.github.com)")
+	if err != nil {
+		return err
+	}
+
+	// Generate key
 	home, _ := os.UserHomeDir()
-	sshDir := filepath.Join(home, ".ssh")
-	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+	keyPath := filepath.Join(home, ".ssh", "id_ed25519_"+label)
+	pubkey, err := GenerateSSHKey(keyPath, label)
+	if err != nil {
+		return err
+	}
+	if err := WriteSSHConfig([]SSHKeyInfo{{Label: label, Host: host, KeyFile: keyPath}}); err != nil {
 		return err
 	}
 
-	fmt.Println("  Please ensure SSH keys are available (via 1Password SSH Agent or manual export).")
-
-	configPath := filepath.Join(sshDir, "config")
-	if _, err := os.Stat(configPath); err == nil {
-		fmt.Println("  ~/.ssh/config already exists — skipping write.")
-		return nil
+	// Verify or prompt user to add key
+	if err := VerifySSHConnection(host); err != nil {
+		if err := PromptAndWaitForSSHKey(reader, label, host, pubkey); err != nil {
+			return err
+		}
+	} else {
+		fmt.Printf("  ✓ SSH key already authorized on %s.\n", host)
 	}
 
-	if len(opts.SSHHosts) == 0 {
-		fmt.Println("  No ssh.hosts configured — skipping SSH config generation.")
-		return nil
-	}
-
-	var config string
-	for name, host := range opts.SSHHosts {
-		config += fmt.Sprintf("Host %s\n  HostName github.com\n  User git\n  IdentityFile ~/.ssh/id_ed25519_%s\n  IdentitiesOnly yes\n\n", host, name)
-	}
-	config += "Host *\n  AddKeysToAgent yes\n  UseKeychain yes\n"
-
-	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
-		return err
-	}
-	fmt.Println("  Wrote ~/.ssh/config with host aliases.")
 	return nil
 }
 
-func cloneDotfiles(opts *Options) error {
+func stepCloneDotfiles(opts *Options, _ *bufio.Reader) error {
 	if err := os.MkdirAll(filepath.Dir(opts.DotfilesPath), 0o755); err != nil {
 		return err
 	}
@@ -131,7 +138,7 @@ func dotfilesCloned(opts *Options) bool {
 	return err == nil
 }
 
-func cloneDotctl(opts *Options) error {
+func stepCloneDotctl(opts *Options, _ *bufio.Reader) error {
 	if err := os.MkdirAll(filepath.Dir(opts.DotctlPath), 0o755); err != nil {
 		return err
 	}
@@ -146,7 +153,127 @@ func dotctlCloned(opts *Options) bool {
 	return err == nil
 }
 
-func createContextDirs(_ *Options) error {
+func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
+	flakePath := opts.DotfilesPath
+	hostname, _ := os.Hostname()
+	ref := fmt.Sprintf("%s#%s", flakePath, hostname)
+
+	// Check if darwin-rebuild exists (not first run)
+	if _, err := exec.LookPath("darwin-rebuild"); err == nil {
+		cmd := exec.Command("darwin-rebuild", "switch", "--flake", ref)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		return cmd.Run()
+	}
+
+	// First run: use nix run to bootstrap nix-darwin
+	fmt.Println("  First nix-darwin run (bootstrapping)...")
+	cmd := exec.Command("nix", "run", "nix-darwin", "--", "switch", "--flake", ref)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Env = append(os.Environ(), "NIX_CONFIG=experimental-features = nix-command flakes")
+	return cmd.Run()
+}
+
+func noFlake(opts *Options) bool {
+	_, err := os.Stat(filepath.Join(opts.DotfilesPath, "flake.nix"))
+	return err != nil
+}
+
+func stepPostCloneSSH(opts *Options, reader *bufio.Reader) error {
+	// Read all context definitions and set up any remaining SSH keys
+	contextsDir := filepath.Join(opts.DotfilesPath, "contexts")
+	if _, err := os.Stat(contextsDir); err != nil {
+		fmt.Println("  No contexts/ directory found, skipping.")
+		return nil
+	}
+
+	entries, err := os.ReadDir(contextsDir)
+	if err != nil {
+		return err
+	}
+
+	contexts := make(map[string]*context.ContextDef)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), ".toml")
+		var ctx context.ContextDef
+		path := filepath.Join(contextsDir, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if err := tomlUnmarshal(data, &ctx); err != nil {
+			fmt.Printf("  ⚠ Could not parse %s: %v\n", e.Name(), err)
+			continue
+		}
+		contexts[name] = &ctx
+	}
+
+	if len(contexts) == 0 {
+		return nil
+	}
+
+	return SetupSSHFromContexts(reader, contexts)
+}
+
+func stepCreateContextDirs(opts *Options, _ *bufio.Reader) error {
+	// Read context definitions to know what directories to create
+	contextsDir := filepath.Join(opts.DotfilesPath, "contexts")
+	if _, err := os.Stat(contextsDir); err != nil {
+		// No contexts dir — create defaults
+		return createDefaultContextDirs()
+	}
+
+	entries, err := os.ReadDir(contextsDir)
+	if err != nil {
+		return createDefaultContextDirs()
+	}
+
+	home, _ := os.UserHomeDir()
+	created := map[string]bool{}
+
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
+			continue
+		}
+		path := filepath.Join(contextsDir, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		var ctx context.ContextDef
+		if err := tomlUnmarshal(data, &ctx); err != nil {
+			continue
+		}
+
+		// Create symlink targets
+		for _, target := range ctx.Symlinks {
+			target = expandHome(target, home)
+			if !created[target] {
+				os.MkdirAll(target, 0o755)
+				created[target] = true
+			}
+		}
+
+		// Create DOCKER_CONFIG directory if set
+		if dockerCfg, ok := ctx.Env["DOCKER_CONFIG"]; ok {
+			dockerCfg = expandHome(dockerCfg, home)
+			if !created[dockerCfg] {
+				os.MkdirAll(dockerCfg, 0o755)
+				created[dockerCfg] = true
+			}
+		}
+	}
+
+	// Also create state dir
+	os.MkdirAll(filepath.Join(home, ".local", "state", "dotctl"), 0o755)
+	return nil
+}
+
+func createDefaultContextDirs() error {
 	home, _ := os.UserHomeDir()
 	dirs := []string{
 		filepath.Join(home, ".aws-work"),
@@ -165,22 +292,7 @@ func createContextDirs(_ *Options) error {
 	return nil
 }
 
-func nixDarwinSwitch(opts *Options) error {
-	flakePath := opts.DotfilesPath
-	hostname, _ := os.Hostname()
-	ref := fmt.Sprintf("%s#%s", flakePath, hostname)
-	cmd := exec.Command("darwin-rebuild", "switch", "--flake", ref)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func noFlake(opts *Options) bool {
-	_, err := os.Stat(filepath.Join(opts.DotfilesPath, "flake.nix"))
-	return err != nil
-}
-
-func stowDotfiles(opts *Options) error {
+func stepStowDotfiles(opts *Options, _ *bufio.Reader) error {
 	stowDir := filepath.Join(opts.DotfilesPath, "stow")
 	entries, err := os.ReadDir(stowDir)
 	if err != nil {
@@ -210,7 +322,7 @@ func noStowDir(opts *Options) bool {
 	return err != nil
 }
 
-func miseInstall(_ *Options) error {
+func stepMiseInstall(opts *Options, _ *bufio.Reader) error {
 	cmd := exec.Command("mise", "install")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -220,4 +332,26 @@ func miseInstall(_ *Options) error {
 func miseNotAvailable(_ *Options) bool {
 	_, err := exec.LookPath("mise")
 	return err != nil
+}
+
+// --- Helpers ---
+
+func promptLine(reader *bufio.Reader, label string) (string, error) {
+	fmt.Printf("%s: ", label)
+	line, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	val := strings.TrimSpace(line)
+	if val == "" {
+		return "", fmt.Errorf("%s is required", label)
+	}
+	return val, nil
+}
+
+func expandHome(path, home string) string {
+	if strings.HasPrefix(path, "~/") {
+		return filepath.Join(home, path[2:])
+	}
+	return path
 }
