@@ -53,12 +53,8 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Write config file if it doesn't exist (so future runs don't prompt again)
-	if err := maybeWriteConfig(cfg, opts); err != nil {
-		fmt.Fprintf(os.Stderr, "⚠ could not save config: %v\n", err)
-	}
-
 	steps := bootstrap.Steps()
+	configWritten := false
 	for _, step := range steps {
 		if step.Skip != nil && step.Skip(opts) {
 			fmt.Fprintf(os.Stdout, "⊘ %s (already done)\n", step.Name)
@@ -70,6 +66,21 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("%s: %w", step.Name, err)
 		}
 		fmt.Fprintf(os.Stdout, "✓ %s\n\n", step.Name)
+
+		// Write config after dotfiles clone succeeds (not before)
+		if !configWritten && step.Name == "Clone dotfiles repo" {
+			if err := maybeWriteConfig(cfg, opts); err != nil {
+				fmt.Fprintf(os.Stderr, "⚠ could not save config: %v\n", err)
+			}
+			configWritten = true
+		}
+	}
+
+	// Write config even if clone was skipped (already cloned)
+	if !configWritten {
+		if err := maybeWriteConfig(cfg, opts); err != nil {
+			fmt.Fprintf(os.Stderr, "⚠ could not save config: %v\n", err)
+		}
 	}
 
 	// Set default context
