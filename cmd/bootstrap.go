@@ -151,6 +151,12 @@ path = %q
 remote = %q
 `, opts.DotfilesPath, opts.DotfilesRemote)
 
+	// Derive dotctl remote from same SSH host as dotfiles
+	dotctlRemote := deriveDotctlRemote(opts.DotfilesRemote)
+	if dotctlRemote != "" {
+		content += fmt.Sprintf("\n[dotctl]\nremote = %q\n", dotctlRemote)
+	}
+
 	return os.WriteFile(configPath, []byte(content), 0o644)
 }
 
@@ -166,4 +172,19 @@ func updateConfigMachine(machine string) {
 	}
 	content = fmt.Sprintf("machine = %q\n\n%s", machine, content)
 	os.WriteFile(configPath, []byte(content), 0o644)
+}
+
+func deriveDotctlRemote(dotfilesRemote string) string {
+	// git@host:owner/repo.git → git@host:owner/dotctl.git
+	if !strings.Contains(dotfilesRemote, ":") {
+		return ""
+	}
+	parts := strings.SplitN(dotfilesRemote, ":", 2)
+	host := parts[0]
+	ownerRepo := parts[1]
+	owner, _, _ := strings.Cut(ownerRepo, "/")
+	if owner == "" {
+		return ""
+	}
+	return fmt.Sprintf("%s:%s/dotctl.git", host, owner)
 }
