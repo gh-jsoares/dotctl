@@ -16,6 +16,7 @@ type Options struct {
 	DotfilesRemote string
 	DotfilesPath   string
 	DefaultContext string
+	Machine        string // hostname override for nix-darwin flake ref
 	SSHHost        string // populated by pre-clone SSH step
 }
 
@@ -177,7 +178,11 @@ func dotfilesCloned(opts *Options) bool {
 
 func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 	flakePath := opts.DotfilesPath
-	hostname, _ := os.Hostname()
+	hostname := opts.Machine
+	if hostname == "" {
+		h, _ := os.Hostname()
+		hostname = strings.TrimSuffix(h, ".local")
+	}
 	ref := fmt.Sprintf("%s#%s", flakePath, hostname)
 
 	// Check if darwin-rebuild exists (not first run)
@@ -189,9 +194,13 @@ func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 		return cmd.Run()
 	}
 
-	// First run: use nix run to bootstrap nix-darwin
+	// Use absolute path because sudo resets PATH on macOS
+	nixBin := "/nix/var/nix/profiles/default/bin/nix"
+	if path, err := exec.LookPath("nix"); err == nil {
+		nixBin = path
+	}
 	fmt.Println("  First nix-darwin run (bootstrapping)...")
-	cmd := exec.Command("sudo", "nix", "run", "nix-darwin", "--", "switch", "--flake", ref)
+	cmd := exec.Command("sudo", nixBin, "run", "nix-darwin", "--", "switch", "--flake", ref)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin

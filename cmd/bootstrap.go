@@ -42,6 +42,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		DotfilesRemote: coalesce(bootstrapDotfilesRemote, cfg.Dotfiles.Remote),
 		DotfilesPath:   coalesce(bootstrapDotfilesPath, cfg.Dotfiles.Path),
 		DefaultContext: bootstrapDefaultCtx,
+		Machine:        cfg.Machine,
 	}
 
 	reader := bufio.NewReader(os.Stdin)
