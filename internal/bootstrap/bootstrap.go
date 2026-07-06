@@ -224,7 +224,15 @@ func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
-		return cmd.Run()
+		if err := cmd.Run(); err != nil {
+			return err
+		}
+		for _, p := range []string{"/run/current-system/sw/bin", "/opt/homebrew/bin"} {
+			if _, err := os.Stat(p); err == nil {
+				os.Setenv("PATH", p+":"+os.Getenv("PATH"))
+			}
+		}
+		return nil
 	}
 
 	fmt.Println("  First nix-darwin run (bootstrapping)...")
@@ -233,7 +241,17 @@ func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
 	cmd.Env = append(os.Environ(), "NIX_CONFIG=experimental-features = nix-command flakes")
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	// Add nix-darwin managed paths to current process for subsequent steps
+	for _, p := range []string{"/run/current-system/sw/bin", "/opt/homebrew/bin"} {
+		if _, err := os.Stat(p); err == nil {
+			os.Setenv("PATH", p+":"+os.Getenv("PATH"))
+		}
+	}
+	return nil
 }
 
 func noFlake(opts *Options) bool {
