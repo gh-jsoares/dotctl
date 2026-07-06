@@ -23,12 +23,16 @@ func NixDarwinSwitch(cfg *config.Config) error {
 		return fmt.Errorf("no flake.nix found at %s (skipping nix-darwin)", flakePath)
 	}
 
-	hostname, _ := os.Hostname()
+	hostname := cfg.Machine
+	if hostname == "" {
+		hostname = "default"
+	}
 	ref := fmt.Sprintf("%s#%s", flakePath, hostname)
 
-	cmd := exec.Command("darwin-rebuild", "switch", "--flake", ref)
+	cmd := exec.Command("sudo", "darwin-rebuild", "switch", "--flake", ref)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
 

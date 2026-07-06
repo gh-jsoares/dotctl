@@ -180,8 +180,7 @@ func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 	flakePath := opts.DotfilesPath
 	hostname := opts.Machine
 	if hostname == "" {
-		h, _ := os.Hostname()
-		hostname = strings.TrimSuffix(h, ".local")
+		hostname = "default"
 		opts.Machine = hostname
 	}
 
