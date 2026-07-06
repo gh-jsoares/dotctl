@@ -202,7 +202,7 @@ func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 	}
 
 	fmt.Println("  First nix-darwin run (bootstrapping)...")
-	cmd := exec.Command(nixBin, "run", "github:LnL7/nix-darwin", "--", "switch", "--flake", ref)
+	cmd := exec.Command("sudo", nixBin, "run", "github:LnL7/nix-darwin", "--", "switch", "--flake", ref)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
