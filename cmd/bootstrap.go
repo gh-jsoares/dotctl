@@ -77,6 +77,11 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Persist machine name if it was set during nix-darwin step
+	if opts.Machine != "" {
+		updateConfigMachine(opts.Machine)
+	}
+
 	// Set default context
 	fmt.Fprintf(os.Stdout, "▸ Setting default context to %q\n", opts.DefaultContext)
 	ctxDefaultCmd.SetArgs([]string{opts.DefaultContext})
@@ -137,10 +142,28 @@ func maybeWriteConfig(cfg *config.Config, opts *bootstrap.Options) error {
 		return err
 	}
 
-	content := fmt.Sprintf(`[dotfiles]
+	var content string
+	if opts.Machine != "" {
+		content = fmt.Sprintf("machine = %q\n\n", opts.Machine)
+	}
+	content += fmt.Sprintf(`[dotfiles]
 path = %q
 remote = %q
 `, opts.DotfilesPath, opts.DotfilesRemote)
 
 	return os.WriteFile(configPath, []byte(content), 0o644)
+}
+
+func updateConfigMachine(machine string) {
+	configPath := config.DefaultConfigPath()
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return
+	}
+	content := string(data)
+	if strings.Contains(content, "machine") {
+		return
+	}
+	content = fmt.Sprintf("machine = %q\n\n%s", machine, content)
+	os.WriteFile(configPath, []byte(content), 0o644)
 }
