@@ -182,17 +182,19 @@ func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 
 	// Check if darwin-rebuild exists (not first run)
 	if _, err := exec.LookPath("darwin-rebuild"); err == nil {
-		cmd := exec.Command("darwin-rebuild", "switch", "--flake", ref)
+		cmd := exec.Command("sudo", "darwin-rebuild", "switch", "--flake", ref)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
 		return cmd.Run()
 	}
 
 	// First run: use nix run to bootstrap nix-darwin
 	fmt.Println("  First nix-darwin run (bootstrapping)...")
-	cmd := exec.Command("nix", "run", "nix-darwin", "--", "switch", "--flake", ref)
+	cmd := exec.Command("sudo", "nix", "run", "nix-darwin", "--", "switch", "--flake", ref)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
 	cmd.Env = append(os.Environ(), "NIX_CONFIG=experimental-features = nix-command flakes")
 	return cmd.Run()
 }
