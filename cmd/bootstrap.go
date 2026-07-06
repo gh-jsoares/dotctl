@@ -44,14 +44,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		DefaultContext: bootstrapDefaultCtx,
 	}
 
-	// Interactive prompts for missing required values
 	reader := bufio.NewReader(os.Stdin)
-	if opts.DotfilesRemote == "" {
-		opts.DotfilesRemote, err = prompt(reader, "Dotfiles git remote URL")
-		if err != nil {
-			return err
-		}
-	}
 
 	steps := bootstrap.Steps()
 	configWritten := false
@@ -103,18 +96,7 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func prompt(reader *bufio.Reader, label string) (string, error) {
-	fmt.Fprintf(os.Stdout, "  %s: ", label)
-	line, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	val := strings.TrimSpace(line)
-	if val == "" {
-		return "", fmt.Errorf("%s is required", label)
-	}
-	return val, nil
-}
+
 
 func coalesce(values ...string) string {
 	for _, v := range values {

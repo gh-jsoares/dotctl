@@ -16,6 +16,7 @@ type Options struct {
 	DotfilesRemote string
 	DotfilesPath   string
 	DefaultContext string
+	SSHHost        string // populated by pre-clone SSH step
 }
 
 // PreCloneInfo is gathered interactively before repos are cloned
@@ -128,10 +129,24 @@ func stepPreCloneSSH(opts *Options, reader *bufio.Reader) error {
 		fmt.Printf("  ✓ SSH key already authorized on %s.\n", host)
 	}
 
+	opts.SSHHost = host
 	return nil
 }
 
-func stepCloneDotfiles(opts *Options, _ *bufio.Reader) error {
+func stepCloneDotfiles(opts *Options, reader *bufio.Reader) error {
+	if opts.DotfilesRemote == "" {
+		repo, err := promptLine(reader, "  GitHub repo (e.g., user/dotfiles)")
+		if err != nil {
+			return err
+		}
+		host := opts.SSHHost
+		if host == "" {
+			host = "github.com"
+		}
+		opts.DotfilesRemote = fmt.Sprintf("git@%s:%s.git", host, repo)
+	}
+
+	fmt.Printf("  Cloning %s\n", opts.DotfilesRemote)
 	if err := os.MkdirAll(filepath.Dir(opts.DotfilesPath), 0o755); err != nil {
 		return err
 	}
