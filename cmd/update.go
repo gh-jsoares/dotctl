@@ -35,6 +35,25 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	if updateFromSource {
 		return updateSource()
 	}
+
+	// Check if we can write to the binary location; if not, re-exec with sudo
+	currentBin, err := os.Executable()
+	if err == nil {
+		if f, err := os.OpenFile(currentBin, os.O_WRONLY, 0o755); err != nil {
+			if os.IsPermission(err) {
+				fmt.Println("Elevating to install update...")
+				sudoArgs := append([]string{currentBin}, os.Args[1:]...)
+				sudoCmd := exec.Command("sudo", sudoArgs...)
+				sudoCmd.Stdin = os.Stdin
+				sudoCmd.Stdout = os.Stdout
+				sudoCmd.Stderr = os.Stderr
+				return sudoCmd.Run()
+			}
+		} else {
+			f.Close()
+		}
+	}
+
 	return updateRelease()
 }
 
