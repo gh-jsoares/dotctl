@@ -105,7 +105,15 @@ func nixInstalled(_ *Options) bool {
 }
 
 func stepHomebrew(opts *Options, _ *bufio.Reader) error {
-	cmd := exec.Command("bash", "-c", "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash")
+	script := filepath.Join(os.TempDir(), "brew-install.sh")
+	dl := exec.Command("curl", "-fsSL", "-o", script, "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh")
+	dl.Stdout = os.Stdout
+	dl.Stderr = os.Stderr
+	if err := dl.Run(); err != nil {
+		return fmt.Errorf("downloading homebrew installer: %w", err)
+	}
+
+	cmd := exec.Command("bash", script)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
