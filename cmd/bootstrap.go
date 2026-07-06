@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gh-jsoares/dotctl/internal/bootstrap"
 	"github.com/gh-jsoares/dotctl/internal/config"
@@ -46,6 +48,30 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 
 	reader := bufio.NewReader(os.Stdin)
+
+	// Cache sudo credentials upfront and keep them alive
+	fmt.Fprintln(os.Stdout, "▸ Requesting sudo access (needed for nix-darwin and Homebrew)...")
+	sudoCmd := exec.Command("sudo", "-v")
+	sudoCmd.Stdin = os.Stdin
+	sudoCmd.Stdout = os.Stdout
+	sudoCmd.Stderr = os.Stderr
+	if err := sudoCmd.Run(); err != nil {
+		return fmt.Errorf("sudo: %w", err)
+	}
+	stopKeepAlive := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				exec.Command("sudo", "-v").Run()
+			case <-stopKeepAlive:
+				return
+			}
+		}
+	}()
+	defer close(stopKeepAlive)
 
 	steps := bootstrap.Steps()
 	configWritten := false
