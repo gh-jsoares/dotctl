@@ -60,12 +60,12 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	}
 	stopKeepAlive := make(chan struct{})
 	go func() {
-		ticker := time.NewTicker(60 * time.Second)
+		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
 			select {
 			case <-ticker.C:
-				exec.Command("sudo", "-v").Run()
+				exec.Command("sudo", "-n", "-v").Run()
 			case <-stopKeepAlive:
 				return
 			}
