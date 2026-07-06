@@ -36,6 +36,7 @@ func Steps() []Step {
 	return []Step{
 		{"Xcode CLI tools", stepXcode, xcodeInstalled},
 		{"Nix", stepNix, nixInstalled},
+		{"Homebrew", stepHomebrew, homebrewInstalled},
 		{"Pre-clone SSH setup", stepPreCloneSSH, nil},
 		{"Clone dotfiles repo", stepCloneDotfiles, dotfilesCloned},
 		{"nix-darwin switch", stepNixDarwinSwitch, noFlake},
@@ -100,6 +101,25 @@ func stepNix(opts *Options, _ *bufio.Reader) error {
 
 func nixInstalled(_ *Options) bool {
 	_, err := exec.LookPath("nix")
+	return err == nil
+}
+
+func stepHomebrew(opts *Options, _ *bufio.Reader) error {
+	cmd := exec.Command("bash", "-c", "curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh | bash")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	cmd.Env = append(os.Environ(), "NONINTERACTIVE=1")
+	return cmd.Run()
+}
+
+func homebrewInstalled(_ *Options) bool {
+	_, err := exec.LookPath("brew")
+	if err == nil {
+		return true
+	}
+	// Homebrew on Apple Silicon isn't in PATH until shell is reloaded
+	_, err = os.Stat("/opt/homebrew/bin/brew")
 	return err == nil
 }
 
