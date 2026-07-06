@@ -80,7 +80,21 @@ func stepNix(opts *Options, _ *bufio.Reader) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	// Source nix into the current process environment
+	nixProfile := "/nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh"
+	out, err := exec.Command("bash", "-c", fmt.Sprintf(". %s && env", nixProfile)).Output()
+	if err == nil {
+		for _, line := range strings.Split(string(out), "\n") {
+			if k, v, ok := strings.Cut(line, "="); ok {
+				os.Setenv(k, v)
+			}
+		}
+	}
+	return nil
 }
 
 func nixInstalled(_ *Options) bool {
