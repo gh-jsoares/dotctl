@@ -158,11 +158,15 @@ func SetupSSHFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 						fmt.Printf("  Falling back to key generation.\n")
 					} else {
 						fmt.Printf("  ✓ Key retrieved from 1Password.\n")
-						keys = append(keys, SSHKeyInfo{Label: name, Host: ctx.SSH.Host, KeyFile: keyPath})
+						keyInfo := SSHKeyInfo{Label: name, Host: ctx.SSH.Host, KeyFile: keyPath}
+						keys = append(keys, keyInfo)
+						WriteSSHConfig([]SSHKeyInfo{keyInfo})
 						continue
 					}
 				} else {
-					keys = append(keys, SSHKeyInfo{Label: name, Host: ctx.SSH.Host, KeyFile: keyPath})
+					keyInfo := SSHKeyInfo{Label: name, Host: ctx.SSH.Host, KeyFile: keyPath}
+					keys = append(keys, keyInfo)
+					WriteSSHConfig([]SSHKeyInfo{keyInfo})
 					continue
 				}
 			}
@@ -174,7 +178,13 @@ func SetupSSHFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 			return fmt.Errorf("generating SSH key for %q: %w", name, err)
 		}
 
-		keys = append(keys, SSHKeyInfo{Label: name, Host: ctx.SSH.Host, KeyFile: keyPath})
+		keyInfo := SSHKeyInfo{Label: name, Host: ctx.SSH.Host, KeyFile: keyPath}
+		keys = append(keys, keyInfo)
+
+		// Write SSH config immediately so the host alias resolves during verification
+		if err := WriteSSHConfig([]SSHKeyInfo{keyInfo}); err != nil {
+			return fmt.Errorf("writing SSH config: %w", err)
+		}
 
 		// Check if we need to prompt user to add the key
 		if err := VerifySSHConnection(ctx.SSH.Host); err != nil {
@@ -183,12 +193,6 @@ func SetupSSHFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 			}
 		} else {
 			fmt.Printf("  ✓ SSH key for %q already authorized on %s.\n", name, ctx.SSH.Host)
-		}
-	}
-
-	if len(keys) > 0 {
-		if err := WriteSSHConfig(keys); err != nil {
-			return fmt.Errorf("writing SSH config: %w", err)
 		}
 	}
 
