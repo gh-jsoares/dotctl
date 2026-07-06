@@ -194,13 +194,14 @@ func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 		return cmd.Run()
 	}
 
-	// Use absolute path because sudo resets PATH on macOS
+	// Don't use sudo here — nix-darwin handles elevation internally during activation.
+	// Use the full GitHub flake ref for nix-darwin (registry not available under all envs).
 	nixBin := "/nix/var/nix/profiles/default/bin/nix"
 	if path, err := exec.LookPath("nix"); err == nil {
 		nixBin = path
 	}
 	fmt.Println("  First nix-darwin run (bootstrapping)...")
-	cmd := exec.Command("sudo", nixBin, "run", "nix-darwin", "--", "switch", "--flake", ref)
+	cmd := exec.Command(nixBin, "run", "github:LnL7/nix-darwin", "--", "switch", "--flake", ref)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
