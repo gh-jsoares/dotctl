@@ -109,7 +109,6 @@ func stepHomebrew(opts *Options, _ *bufio.Reader) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Stdin = os.Stdin
-	cmd.Env = append(os.Environ(), "NONINTERACTIVE=1")
 	return cmd.Run()
 }
 
