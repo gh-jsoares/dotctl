@@ -176,35 +176,21 @@ func dotfilesCloned(opts *Options) bool {
 	return err == nil
 }
 
-func stepNixDarwinSwitch(opts *Options, reader *bufio.Reader) error {
+func stepNixDarwinSwitch(opts *Options, _ *bufio.Reader) error {
 	flakePath := opts.DotfilesPath
 	hostname := opts.Machine
 	if hostname == "" {
 		h, _ := os.Hostname()
 		hostname = strings.TrimSuffix(h, ".local")
+		opts.Machine = hostname
 	}
 
-	// Verify the hostname matches a darwinConfigurations key in the flake
 	nixBin := "/nix/var/nix/profiles/default/bin/nix"
 	if path, err := exec.LookPath("nix"); err == nil {
 		nixBin = path
 	}
-	ref := fmt.Sprintf("%s#darwinConfigurations.%s", flakePath, hostname)
-	checkCmd := exec.Command(nixBin, "eval", ref, "--apply", "x: true")
-	checkCmd.Env = append(os.Environ(), "NIX_CONFIG=experimental-features = nix-command flakes")
-	if err := checkCmd.Run(); err != nil {
-		fmt.Printf("  ⚠ No darwinConfigurations.%q in flake.\n", hostname)
-		fmt.Printf("  You may need to add this hostname to your flake.nix,\n")
-		fmt.Printf("  or enter the existing configuration name.\n")
-		name, promptErr := promptLine(reader, "  Flake configuration name")
-		if promptErr != nil {
-			return promptErr
-		}
-		hostname = name
-		opts.Machine = hostname
-	}
 
-	ref = fmt.Sprintf("%s#%s", flakePath, hostname)
+	ref := fmt.Sprintf("%s#%s", flakePath, hostname)
 
 	// Check if darwin-rebuild exists (not first run)
 	if _, err := exec.LookPath("darwin-rebuild"); err == nil {
