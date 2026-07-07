@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"syscall"
 
 	"github.com/gh-jsoares/dotctl/internal/config"
 	"github.com/gh-jsoares/dotctl/internal/orchestrator"
@@ -38,6 +40,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 			Enabled: orchestrator.HasStow,
 		},
 		{
+			Name:    "sheldon lock",
+			Run:     orchestrator.SheldonLock,
+			Enabled: orchestrator.HasSheldon,
+		},
+		{
 			Name:    "mise install",
 			Run:     orchestrator.MiseInstall,
 			Enabled: orchestrator.HasMise,
@@ -57,6 +64,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stdout, "✓ %s\n", step.Name)
 	}
 
-	fmt.Fprintln(os.Stdout, "\nSync complete.")
-	return nil
+	fmt.Fprintln(os.Stdout, "\nSync complete. Reloading shell...")
+	shellPath := os.Getenv("SHELL")
+	if shellPath == "" {
+		shellPath = "/bin/zsh"
+	}
+	return syscall.Exec(shellPath, []string{"-" + filepath.Base(shellPath)}, os.Environ())
 }

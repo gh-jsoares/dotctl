@@ -66,6 +66,13 @@ func StowAll(cfg *config.Config) error {
 	return cmd.Run()
 }
 
+func SheldonLock(cfg *config.Config) error {
+	cmd := exec.Command("sheldon", "lock", "--update")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
 func MiseInstall(cfg *config.Config) error {
 	cmd := exec.Command("mise", "install")
 	cmd.Stdout = os.Stdout
@@ -82,6 +89,11 @@ func HasFlake(cfg *config.Config) bool {
 func HasStow(cfg *config.Config) bool {
 	stowDir := filepath.Join(cfg.Dotfiles.Path, "stow")
 	_, err := os.Stat(stowDir)
+	return err == nil
+}
+
+func HasSheldon(_ *config.Config) bool {
+	_, err := exec.LookPath("sheldon")
 	return err == nil
 }
 
