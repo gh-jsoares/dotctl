@@ -15,6 +15,19 @@ type Step struct {
 	Enabled func(cfg *config.Config) bool
 }
 
+func GitPull(cfg *config.Config) error {
+	cmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "pull", "--ff-only")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func HasGitRepo(cfg *config.Config) bool {
+	gitDir := filepath.Join(cfg.Dotfiles.Path, ".git")
+	_, err := os.Stat(gitDir)
+	return err == nil
+}
+
 func NixDarwinSwitch(cfg *config.Config) error {
 	flakePath := cfg.Dotfiles.Path
 	flakeFile := filepath.Join(flakePath, "flake.nix")

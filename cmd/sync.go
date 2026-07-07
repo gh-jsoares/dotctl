@@ -11,6 +11,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var syncNoPull bool
+
 var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync environment to desired state",
@@ -19,6 +21,7 @@ var syncCmd = &cobra.Command{
 }
 
 func init() {
+	syncCmd.Flags().BoolVar(&syncNoPull, "no-pull", false, "skip git pull before syncing")
 	rootCmd.AddCommand(syncCmd)
 }
 
@@ -29,6 +32,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	steps := []orchestrator.Step{
+		{
+			Name:    "git pull",
+			Run:     orchestrator.GitPull,
+			Enabled: func(cfg *config.Config) bool {
+				return !syncNoPull && orchestrator.HasGitRepo(cfg)
+			},
+		},
 		{
 			Name:    "nix-darwin switch",
 			Run:     orchestrator.NixDarwinSwitch,
