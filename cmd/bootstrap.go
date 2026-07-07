@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/gh-jsoares/dotctl/internal/bootstrap"
@@ -123,9 +124,14 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "\n⚠ Some doctor checks failed — review above.\n")
 	}
 
-	fmt.Fprintln(os.Stdout, "\nBootstrap complete.")
-	fmt.Fprintln(os.Stdout, "Run 'eval \"$(dotctl shell-init zsh)\"' or restart your shell.")
-	return nil
+	fmt.Fprintln(os.Stdout, "\nBootstrap complete. Reloading shell...")
+
+	// Replace current process with a fresh shell to pick up new PATH
+	shellPath := os.Getenv("SHELL")
+	if shellPath == "" {
+		shellPath = "/bin/zsh"
+	}
+	return execShell(shellPath)
 }
 
 
@@ -213,4 +219,9 @@ func deriveDotctlRemote(dotfilesRemote string) string {
 		return ""
 	}
 	return fmt.Sprintf("%s:%s/dotctl.git", host, owner)
+}
+
+func execShell(shellPath string) error {
+	env := os.Environ()
+	return syscall.Exec(shellPath, []string{"-" + filepath.Base(shellPath)}, env)
 }

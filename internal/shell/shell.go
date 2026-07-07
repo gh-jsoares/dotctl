@@ -91,6 +91,10 @@ func zshInit(guards []config.GuardConfig) string {
 	base := `# dotctl shell integration for zsh
 # Source this file in .zshrc or use: eval "$(dotctl shell-init zsh)"
 
+# --- PATH setup ---
+[[ -d /opt/homebrew/bin ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
+[[ -d /run/current-system/sw/bin ]] && export PATH="/run/current-system/sw/bin:$PATH"
+
 # --- Context env vars (file source, no subprocess) ---
 typeset -g DOTCTL_STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/dotctl"
 [[ -f "$DOTCTL_STATE_DIR/env" ]] && source "$DOTCTL_STATE_DIR/env"
