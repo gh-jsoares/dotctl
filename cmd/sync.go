@@ -45,6 +45,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 			Enabled: orchestrator.HasFlake,
 		},
 		{
+			Name:    "commit flake.lock",
+			Run:     orchestrator.CommitLockfile,
+			Enabled: orchestrator.HasDirtyLockfile,
+		},
+		{
 			Name:    "stow dotfiles",
 			Run:     orchestrator.StowAll,
 			Enabled: orchestrator.HasStow,
