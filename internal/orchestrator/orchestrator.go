@@ -205,9 +205,10 @@ func SimpleBarServer(cfg *config.Config) error {
 		return fmt.Errorf("pm2 start failed: %w", err)
 	}
 
-	// Check if pm2 startup is configured
-	launchDaemon := fmt.Sprintf("/Library/LaunchDaemons/pm2.%s.plist", os.Getenv("USER"))
-	if _, err := os.Stat(launchDaemon); err != nil {
+	// Check if pm2 startup is configured (user-level LaunchAgent)
+	home, _ := os.UserHomeDir()
+	launchAgent := filepath.Join(home, "Library", "LaunchAgents", fmt.Sprintf("pm2.%s.plist", os.Getenv("USER")))
+	if _, err := os.Stat(launchAgent); err != nil {
 		fmt.Fprintln(os.Stdout, "  configuring pm2 startup (requires sudo)...")
 		startup := exec.Command("pm2", "startup")
 		startupOut, _ := startup.Output()
