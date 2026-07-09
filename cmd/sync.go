@@ -12,6 +12,7 @@ import (
 )
 
 var syncNoPull bool
+var syncDotfilesOnly bool
 
 var syncCmd = &cobra.Command{
 	Use:   "sync",
@@ -22,6 +23,7 @@ var syncCmd = &cobra.Command{
 
 func init() {
 	syncCmd.Flags().BoolVar(&syncNoPull, "no-pull", false, "skip git pull before syncing")
+	syncCmd.Flags().BoolVar(&syncDotfilesOnly, "dotfiles-only", false, "only pull, stow, and reload (skip nix, sheldon, mise)")
 	rootCmd.AddCommand(syncCmd)
 }
 
@@ -45,14 +47,18 @@ func runSync(cmd *cobra.Command, args []string) error {
 			Enabled: orchestrator.HasSubmodules,
 		},
 		{
-			Name:    "nix-darwin switch",
-			Run:     orchestrator.NixDarwinSwitch,
-			Enabled: orchestrator.HasFlake,
+			Name: "nix-darwin switch",
+			Run:  orchestrator.NixDarwinSwitch,
+			Enabled: func(cfg *config.Config) bool {
+				return !syncDotfilesOnly && orchestrator.HasFlake(cfg)
+			},
 		},
 		{
-			Name:    "commit flake.lock",
-			Run:     orchestrator.CommitLockfile,
-			Enabled: orchestrator.HasDirtyLockfile,
+			Name: "commit flake.lock",
+			Run:  orchestrator.CommitLockfile,
+			Enabled: func(cfg *config.Config) bool {
+				return !syncDotfilesOnly && orchestrator.HasDirtyLockfile(cfg)
+			},
 		},
 		{
 			Name:    "stow dotfiles",
@@ -60,14 +66,18 @@ func runSync(cmd *cobra.Command, args []string) error {
 			Enabled: orchestrator.HasStow,
 		},
 		{
-			Name:    "sheldon lock",
-			Run:     orchestrator.SheldonLock,
-			Enabled: orchestrator.HasSheldon,
+			Name: "sheldon lock",
+			Run:  orchestrator.SheldonLock,
+			Enabled: func(cfg *config.Config) bool {
+				return !syncDotfilesOnly && orchestrator.HasSheldon(cfg)
+			},
 		},
 		{
-			Name:    "mise install",
-			Run:     orchestrator.MiseInstall,
-			Enabled: orchestrator.HasMise,
+			Name: "mise install",
+			Run:  orchestrator.MiseInstall,
+			Enabled: func(cfg *config.Config) bool {
+				return !syncDotfilesOnly && orchestrator.HasMise(cfg)
+			},
 		},
 		{
 			Name:    "aerospace reload",
