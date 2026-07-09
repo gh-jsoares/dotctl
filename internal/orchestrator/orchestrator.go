@@ -195,18 +195,14 @@ func SimpleBarServer(cfg *config.Config) error {
 		}
 	}
 
-	// Check if pm2 has the process running
-	status := exec.Command("pm2", "id", "simple-bar-server")
-	out, _ := status.Output()
-	if string(out) == "[]" || string(out) == "[]\n" {
-		fmt.Fprintln(os.Stdout, "  starting with pm2...")
-		start := exec.Command("pm2", "start", "npm", "--name", "simple-bar-server", "--", "run", "start")
-		start.Dir = serverDir
-		start.Stdout = os.Stdout
-		start.Stderr = os.Stderr
-		if err := start.Run(); err != nil {
-			return fmt.Errorf("pm2 start failed: %w", err)
-		}
+	// Start or restart via ecosystem config
+	fmt.Fprintln(os.Stdout, "  starting simple-bar-server...")
+	start := exec.Command("pm2", "startOrRestart", filepath.Join(serverDir, "ecosystem.config.cjs"))
+	start.Dir = serverDir
+	start.Stdout = os.Stdout
+	start.Stderr = os.Stderr
+	if err := start.Run(); err != nil {
+		return fmt.Errorf("pm2 start failed: %w", err)
 	}
 
 	// Check if pm2 startup is configured
