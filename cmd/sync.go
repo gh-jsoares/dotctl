@@ -69,6 +69,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 			Run:     orchestrator.MiseInstall,
 			Enabled: orchestrator.HasMise,
 		},
+		{
+			Name:    "aerospace reload",
+			Run:     orchestrator.AerospaceReload,
+			Enabled: orchestrator.HasAerospace,
+		},
 	}
 
 	for _, step := range steps {
@@ -84,7 +89,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stdout, "✓ %s\n", step.Name)
 	}
 
-	fmt.Fprintln(os.Stdout, "\nSync complete. Reloading shell...")
+	fmt.Fprintln(os.Stdout, "\n✓ Sync complete.")
+	fmt.Fprintln(os.Stdout, "\n  Übersicht: set widget folder to ~/dotfilesv2/dotfiles/ubersicht/widgets")
+	fmt.Fprintln(os.Stdout, "             enable 'Launch at Login' and set shell to '/bin/bash -l'")
+	fmt.Fprintln(os.Stdout, "\nReloading shell...")
 	shellPath := os.Getenv("SHELL")
 	if shellPath == "" {
 		shellPath = "/bin/zsh"

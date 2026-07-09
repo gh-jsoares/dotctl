@@ -161,6 +161,18 @@ func HasMise(_ *config.Config) bool {
 	return err == nil
 }
 
+func AerospaceReload(cfg *config.Config) error {
+	cmd := exec.Command("aerospace", "reload-config")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func HasAerospace(_ *config.Config) bool {
+	_, err := exec.LookPath("aerospace")
+	return err == nil
+}
+
 func isHidden(name string) bool {
 	return len(name) > 0 && name[0] == '.'
 }
