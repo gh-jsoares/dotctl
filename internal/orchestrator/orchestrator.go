@@ -22,6 +22,19 @@ func GitPull(cfg *config.Config) error {
 	return cmd.Run()
 }
 
+func SubmoduleUpdate(cfg *config.Config) error {
+	cmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "submodule", "update", "--init", "--depth", "1")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func HasSubmodules(cfg *config.Config) bool {
+	modulesFile := filepath.Join(cfg.Dotfiles.Path, ".gitmodules")
+	_, err := os.Stat(modulesFile)
+	return err == nil
+}
+
 func HasGitRepo(cfg *config.Config) bool {
 	gitDir := filepath.Join(cfg.Dotfiles.Path, ".git")
 	_, err := os.Stat(gitDir)

@@ -40,6 +40,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 			},
 		},
 		{
+			Name:    "submodule update",
+			Run:     orchestrator.SubmoduleUpdate,
+			Enabled: orchestrator.HasSubmodules,
+		},
+		{
 			Name:    "nix-darwin switch",
 			Run:     orchestrator.NixDarwinSwitch,
 			Enabled: orchestrator.HasFlake,
