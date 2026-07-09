@@ -165,7 +165,27 @@ func AerospaceReload(cfg *config.Config) error {
 	cmd := exec.Command("aerospace", "reload-config")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "  ⚠ aerospace reload failed (not running?): %v\n", err)
+	}
+	return nil
+}
+
+func TmuxReload(cfg *config.Config) error {
+	if os.Getenv("TMUX") == "" {
+		return nil
+	}
+	cmd := exec.Command("tmux", "source-file", filepath.Join(os.Getenv("HOME"), ".config", "tmux", "tmux.conf"))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "  ⚠ tmux reload failed: %v\n", err)
+	}
+	return nil
+}
+
+func HasTmux(_ *config.Config) bool {
+	return os.Getenv("TMUX") != ""
 }
 
 func SimpleBarServer(cfg *config.Config) error {

@@ -85,6 +85,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 			Enabled: orchestrator.HasSimpleBarServer,
 		},
 		{
+			Name:    "tmux reload",
+			Run:     orchestrator.TmuxReload,
+			Enabled: orchestrator.HasTmux,
+		},
+		{
 			Name:    "aerospace reload",
 			Run:     orchestrator.AerospaceReload,
 			Enabled: orchestrator.HasAerospace,
