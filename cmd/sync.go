@@ -80,6 +80,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 			},
 		},
 		{
+			Name:    "simple-bar-server",
+			Run:     orchestrator.SimpleBarServer,
+			Enabled: orchestrator.HasSimpleBarServer,
+		},
+		{
 			Name:    "aerospace reload",
 			Run:     orchestrator.AerospaceReload,
 			Enabled: orchestrator.HasAerospace,
