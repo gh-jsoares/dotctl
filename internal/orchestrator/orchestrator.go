@@ -23,6 +23,12 @@ func GitPull(cfg *config.Config) error {
 }
 
 func SubmoduleUpdate(cfg *config.Config) error {
+	sync := exec.Command("git", "-C", cfg.Dotfiles.Path, "submodule", "sync")
+	sync.Stdout = os.Stdout
+	sync.Stderr = os.Stderr
+	if err := sync.Run(); err != nil {
+		return err
+	}
 	cmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "submodule", "update", "--init", "--depth", "1")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
