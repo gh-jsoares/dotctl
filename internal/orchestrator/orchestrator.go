@@ -168,7 +168,10 @@ func HasMise(_ *config.Config) bool {
 }
 
 func GrimoireInstall(cfg *config.Config) error {
-	cmd := exec.Command("bash", "-c", "curl -sL https://raw.githubusercontent.com/gh-jsoares/grimoire/main/install.sh | GRIMOIRE_INSTALL_DIR=$HOME/.local/bin sh")
+	home, _ := os.UserHomeDir()
+	installDir := filepath.Join(home, ".local", "bin")
+	os.MkdirAll(installDir, 0755)
+	cmd := exec.Command("bash", "-c", "curl -sL https://raw.githubusercontent.com/gh-jsoares/grimoire/main/install.sh | GRIMOIRE_INSTALL_DIR="+installDir+" sh")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
