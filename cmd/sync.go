@@ -3,8 +3,6 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"path/filepath"
-	"syscall"
 
 	"github.com/gh-jsoares/dotctl/internal/config"
 	"github.com/gh-jsoares/dotctl/internal/orchestrator"
@@ -112,10 +110,6 @@ func runSync(cmd *cobra.Command, args []string) error {
 	fmt.Fprintln(os.Stdout, "\n✓ Sync complete.")
 	fmt.Fprintln(os.Stdout, "\n  Übersicht: set widget folder to ~/dotfilesv2/dotfiles/ubersicht/widgets")
 	fmt.Fprintln(os.Stdout, "             enable 'Launch at Login' and set shell to '/bin/bash -l'")
-	fmt.Fprintln(os.Stdout, "\nReloading shell...")
-	shellPath := os.Getenv("SHELL")
-	if shellPath == "" {
-		shellPath = "/bin/zsh"
-	}
-	return syscall.Exec(shellPath, []string{"-" + filepath.Base(shellPath)}, os.Environ())
+	fmt.Fprintln(os.Stdout, "\nReload your shell with: source ~/.config/zsh/.zshrc")
+	return nil
 }
