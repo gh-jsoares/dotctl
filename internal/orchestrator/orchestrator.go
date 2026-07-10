@@ -167,6 +167,19 @@ func HasMise(_ *config.Config) bool {
 	return err == nil
 }
 
+func GrimoireInstall(cfg *config.Config) error {
+	cmd := exec.Command("bash", "-c", "curl -sL https://raw.githubusercontent.com/gh-jsoares/grimoire/main/install.sh | GRIMOIRE_INSTALL_DIR=$HOME/.local/bin sh")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
+}
+
+func HasGrimoireConfig(cfg *config.Config) bool {
+	grimoireDir := filepath.Join(cfg.Dotfiles.Path, "stow", "grimoire")
+	_, err := os.Stat(grimoireDir)
+	return err == nil
+}
+
 func AerospaceReload(cfg *config.Config) error {
 	cmd := exec.Command("aerospace", "reload-config")
 	cmd.Stdout = os.Stdout

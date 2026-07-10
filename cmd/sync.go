@@ -78,6 +78,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 			},
 		},
 		{
+			Name:    "grimoire install",
+			Run:     orchestrator.GrimoireInstall,
+			Enabled: orchestrator.HasGrimoireConfig,
+		},
+		{
 			Name:    "simple-bar-server",
 			Run:     orchestrator.SimpleBarServer,
 			Enabled: orchestrator.HasSimpleBarServer,
