@@ -174,7 +174,12 @@ func GrimoireInstall(cfg *config.Config) error {
 	cmd := exec.Command("bash", "-c", "curl -sL https://raw.githubusercontent.com/gh-jsoares/grimoire/main/install.sh | GRIMOIRE_INSTALL_DIR="+installDir+" sh")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	// Remove quarantine attribute so macOS doesn't show a permission popup
+	exec.Command("xattr", "-d", "com.apple.quarantine", filepath.Join(installDir, "grimoire")).Run()
+	return nil
 }
 
 func HasGrimoireConfig(cfg *config.Config) bool {
