@@ -6,7 +6,6 @@ if [[ ! -d "$contexts_dir" ]]; then
   exit 0
 fi
 
-created=0
 for toml in "$contexts_dir"/*.toml; do
   [[ -f "$toml" ]] || continue
   ctx=$(basename "$toml" .toml)
@@ -15,12 +14,7 @@ for toml in "$contexts_dir"/*.toml; do
   if [[ ! -d "$dir" ]]; then
     mkdir -p "$dir"
     echo "Created $dir ($ctx)"
-    ((created++))
   else
     echo "OK $dir ($ctx)"
   fi
 done
-
-if ((created == 0)); then
-  echo "All project directories exist"
-fi
