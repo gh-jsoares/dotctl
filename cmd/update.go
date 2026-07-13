@@ -62,9 +62,14 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	current := version
-	if current == latest || "v"+current == latest {
-		fmt.Fprintf(os.Stdout, "  %s dotctl is up to date %s\n", updateGreen.Render("✓"), updateDim.Render("("+current+")"))
+	current := strings.TrimPrefix(version, "v")
+	latestClean := strings.TrimPrefix(latest, "v")
+	if current == "dev" {
+		fmt.Fprintf(os.Stdout, "  %s dotctl built from source %s\n", updateGreen.Render("✓"), updateDim.Render("(dev)"))
+		return nil
+	}
+	if current == latestClean {
+		fmt.Fprintf(os.Stdout, "  %s dotctl is up to date %s\n", updateGreen.Render("✓"), updateDim.Render("(v"+current+")"))
 		return nil
 	}
 
@@ -234,9 +239,9 @@ func CheckForUpdate() {
 		return
 	}
 
-	current := version
+	current := strings.TrimPrefix(version, "v")
 	latestClean := strings.TrimPrefix(tag, "v")
-	if current == "dev" || current == latestClean || "v"+current == tag {
+	if current == "dev" || current == latestClean {
 		return
 	}
 
