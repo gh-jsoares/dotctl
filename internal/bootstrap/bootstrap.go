@@ -41,6 +41,7 @@ func Steps() []Step {
 		{"Clone dotfiles repo", stepCloneDotfiles, dotfilesCloned},
 		{"nix-darwin switch", stepNixDarwinSwitch, noFlake},
 		{"Post-clone SSH setup (from contexts)", stepPostCloneSSH, nil},
+		{"GPG key setup (from contexts)", stepGPGSetup, nil},
 		{"Create context directories", stepCreateContextDirs, nil},
 		{"Stow dotfiles", stepStowDotfiles, noStowDir},
 		{"mise install", stepMiseInstall, miseNotAvailable},
@@ -296,6 +297,44 @@ func stepPostCloneSSH(opts *Options, reader *bufio.Reader) error {
 	}
 
 	return SetupSSHFromContexts(reader, contexts)
+}
+
+func stepGPGSetup(opts *Options, reader *bufio.Reader) error {
+	contextsDir := filepath.Join(opts.DotfilesPath, "contexts")
+	if _, err := os.Stat(contextsDir); err != nil {
+		fmt.Println("  No contexts/ directory found, skipping.")
+		return nil
+	}
+
+	entries, err := os.ReadDir(contextsDir)
+	if err != nil {
+		return err
+	}
+
+	contexts := make(map[string]*context.ContextDef)
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".toml") {
+			continue
+		}
+		name := strings.TrimSuffix(e.Name(), ".toml")
+		var ctx context.ContextDef
+		path := filepath.Join(contextsDir, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		if err := tomlUnmarshal(data, &ctx); err != nil {
+			fmt.Printf("  ⚠ Could not parse %s: %v\n", e.Name(), err)
+			continue
+		}
+		contexts[name] = &ctx
+	}
+
+	if len(contexts) == 0 {
+		return nil
+	}
+
+	return SetupGPGFromContexts(reader, contexts)
 }
 
 func stepCreateContextDirs(opts *Options, _ *bufio.Reader) error {
