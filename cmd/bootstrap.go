@@ -12,6 +12,8 @@ import (
 
 	"github.com/gh-jsoares/dotctl/internal/bootstrap"
 	"github.com/gh-jsoares/dotctl/internal/config"
+	"github.com/gh-jsoares/dotctl/internal/orchestrator"
+	"github.com/gh-jsoares/dotctl/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -75,59 +77,115 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 	defer close(stopKeepAlive)
 
 	steps := bootstrap.Steps()
+
+	// Count enabled steps
+	enabledSteps := []bootstrap.Step{}
+	for _, step := range steps {
+		if step.Skip == nil || !step.Skip(opts) {
+			enabledSteps = append(enabledSteps, step)
+		}
+	}
+
+	ui.SectionWithCount("Setup", len(enabledSteps))
 	configWritten := false
+	idx := 0
+
 	for _, step := range steps {
 		if step.Skip != nil && step.Skip(opts) {
-			fmt.Fprintf(os.Stdout, "⊘ %s (already done)\n", step.Name)
 			continue
 		}
 
-		fmt.Fprintf(os.Stdout, "▸ %s\n", step.Name)
+		idx++
+		st := ui.StepStartWithCounter(step.Name, idx, len(enabledSteps))
+		fmt.Println()
 		if err := step.Fn(opts, reader); err != nil {
+			st.Fail(err)
 			return fmt.Errorf("%s: %w", step.Name, err)
 		}
-		fmt.Fprintf(os.Stdout, "✓ %s\n\n", step.Name)
+		st.Success()
 
-		// Write config after dotfiles clone succeeds (not before)
 		if !configWritten && step.Name == "Clone dotfiles repo" {
 			if err := maybeWriteConfig(cfg, opts); err != nil {
-				fmt.Fprintf(os.Stderr, "⚠ could not save config: %v\n", err)
+				fmt.Fprintf(os.Stderr, "  ⚠ could not save config: %v\n", err)
 			}
 			configWritten = true
 		}
 	}
 
-	// Write config even if clone was skipped (already cloned)
 	if !configWritten {
 		if err := maybeWriteConfig(cfg, opts); err != nil {
 			fmt.Fprintf(os.Stderr, "⚠ could not save config: %v\n", err)
 		}
 	}
 
-	// Persist machine name if it was set during nix-darwin step
 	if opts.Machine != "" {
 		updateConfigMachine(opts.Machine)
 	}
 
 	// Set default context
-	fmt.Fprintf(os.Stdout, "▸ Setting default context to %q\n", opts.DefaultContext)
+	st := ui.StepStart("set default context")
 	ctxDefaultCmd.SetArgs([]string{opts.DefaultContext})
 	if err := ctxDefaultCmd.RunE(ctxDefaultCmd, []string{opts.DefaultContext}); err != nil {
-		fmt.Fprintf(os.Stderr, "  ⚠ could not set default context: %v\n", err)
+		st.Fail(err)
 	} else {
-		fmt.Fprintf(os.Stdout, "✓ Default context: %s\n\n", opts.DefaultContext)
+		st.Success()
 	}
 
-	// Run plugin bootstrap hooks
+	// Reload config now that dotfiles are cloned and stowed
 	reloadedCfg, _ := config.Load()
+
+	// Post-setup steps with spinners
+	type postStep struct {
+		name    string
+		enabled bool
+		fn      func() error
+	}
+
+	postSteps := []postStep{
+		{
+			name:    "refresh context env",
+			enabled: true,
+			fn:      func() error { return orchestrator.RefreshContext(reloadedCfg) },
+		},
+		{
+			name:    "sheldon lock",
+			enabled: reloadedCfg != nil && orchestrator.HasSheldon(reloadedCfg),
+			fn:      func() error { return orchestrator.SheldonLock(reloadedCfg) },
+		},
+	}
+
+	var enabledPost []postStep
+	for _, p := range postSteps {
+		if p.enabled {
+			enabledPost = append(enabledPost, p)
+		}
+	}
+
+	if len(enabledPost) > 0 {
+		ui.SectionWithCount("Finalize", len(enabledPost))
+		for i, p := range enabledPost {
+			pst := ui.StepStartWithCounter(p.name, i+1, len(enabledPost))
+			pst.StartSpin()
+			if err := p.fn(); err != nil {
+				pst.Fail(err)
+			} else {
+				pst.Success()
+			}
+		}
+	}
+
+	// Run plugin hooks
 	if reloadedCfg != nil {
-		if err := runPlugins(reloadedCfg, "bootstrap"); err != nil {
+		if _, _, err := runPluginsUI(reloadedCfg, "bootstrap"); err != nil {
 			fmt.Fprintf(os.Stderr, "  ⚠ plugin bootstrap: %v\n", err)
+		}
+		if _, _, err := runPluginsUI(reloadedCfg, "sync"); err != nil {
+			fmt.Fprintf(os.Stderr, "  ⚠ plugin sync: %v\n", err)
 		}
 	}
 
 	// Run doctor
-	fmt.Fprintln(os.Stdout, "▸ Running doctor...")
+	fmt.Fprintln(os.Stdout)
 	if err := runDoctor(cmd, nil); err != nil {
 		fmt.Fprintf(os.Stderr, "\n⚠ Some doctor checks failed — review above.\n")
 	}
