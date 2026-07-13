@@ -8,18 +8,16 @@ echo "Recording demo..."
 vhs demo.tape
 
 echo "Pushing to assets branch..."
-cp demo.gif /tmp/demo.gif
-git stash -u
-git fetch origin assets 2>/dev/null || true
-git checkout --orphan assets-tmp
-git rm -rf .
-cp /tmp/demo.gif demo.gif
+TMPDIR=$(mktemp -d)
+git clone --no-checkout --depth 1 "$(git remote get-url origin)" "$TMPDIR"
+cd "$TMPDIR"
+git checkout --orphan assets
+git rm -rf . 2>/dev/null || true
+cp "$REPO_ROOT/demo.gif" demo.gif
 git add demo.gif
 git commit -m "update demo gif"
-git branch -M assets-tmp assets
 git push origin assets --force
-git checkout main
-git stash pop 2>/dev/null || true
-rm -f /tmp/demo.gif
+cd "$REPO_ROOT"
+rm -rf "$TMPDIR" demo.gif
 
 echo "Done — gif live at https://raw.githubusercontent.com/gh-jsoares/dotctl/assets/demo.gif"
