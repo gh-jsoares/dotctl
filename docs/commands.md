@@ -76,6 +76,7 @@ dotctl doctor
 Built-in checks:
 - State directory exists
 - A context is set
+- Context matches current working directory
 - Env file exists
 - Symlinks are valid (exist and point to real targets)
 - Required tools are installed (nix, darwin-rebuild, stow, mise, tmux, git, op)
@@ -132,7 +133,7 @@ dotctl status
 ```
 
 Displays:
-- Active context
+- Active context (with mismatch warning if CWD doesn't match)
 - Dotfiles git state (branch, ahead/behind, dirty files)
 - Which sync steps would run
 - Which plugins are active vs skipped
@@ -168,18 +169,7 @@ dotctl completion zsh     # output zsh completions
 dotctl completion fish    # output fish completions
 ```
 
-To load completions permanently:
-
-```bash
-# zsh — add to ~/.zshrc or generate to fpath
-source <(dotctl completion zsh)
-
-# bash
-source <(dotctl completion bash)
-
-# fish
-dotctl completion fish | source
-```
+See [Shell Completions](completions.md) for static generation and caching strategies.
 
 ## dotctl version
 

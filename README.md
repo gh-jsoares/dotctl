@@ -76,6 +76,24 @@ dotctl completion fish | source
 
 See [docs/completions.md](docs/completions.md) for static generation and caching strategies.
 
+## Prompt Integration
+
+dotctl exports environment variables you can use in your shell prompt (starship, p10k, etc.):
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DOTCTL_CONTEXT` | Active context name | `personal` |
+| `DOTCTL_CONTEXT_ICON` | Icon from context TOML `[prompt] icon` | `🏠` |
+
+Starship example:
+
+```toml
+[custom.dotctl_ctx]
+command = "echo ${DOTCTL_CONTEXT_ICON}${DOTCTL_CONTEXT}"
+when = '[ -n "$DOTCTL_CONTEXT" ]'
+style = "bold purple"
+```
+
 ## Documentation
 
 - [Configuration](docs/configuration.md) — config.toml and context definitions
