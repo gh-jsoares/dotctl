@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0 — 2026-07-13
+
+### Added
+
+- bundle man pages in release archives
+- generate git configs from context TOML identity fields
+
+### Documentation
+
+- update changelog for v0.5.3 [skip ci]
+
 ## 0.5.3 — 2026-07-13
 
 ### Added
