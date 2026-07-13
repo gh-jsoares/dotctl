@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.0 — 2026-07-13
+
+### Documentation
+
+- update commands reference for v1.0.0
+- add shell completions section and static generation guide
+- update changelog for v0.6.0 [skip ci]
+
+### Fixed
+
+- consolidate man pages into a single dotctl.1
+- detect Homebrew installs and handle cross-device moves
+
 ## 0.6.0 — 2026-07-13
 
 ### Added
