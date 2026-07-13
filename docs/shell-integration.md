@@ -85,6 +85,37 @@ Shell startup sources the env file (`~/.local/state/dotctl/env`) automatically. 
 
 The file is just a series of `export` statements — sourcing it is a file read, zero cost.
 
+## `dotctl` wrapper (recommended)
+
+The shell integration provides the `ctx` function, but you may also want a `dotctl` wrapper that handles post-command actions like re-sourcing the env or reloading the shell after sync:
+
+```zsh
+# In .zshrc (after sourcing dotctl shell-init)
+dotctl() {
+  command dotctl "$@"
+  local ret=$?
+  if [[ $ret -eq 0 ]]; then
+    case "$1" in
+      sync)
+        echo "Reloading shell..."
+        source "${ZDOTDIR:-$HOME/.config/zsh}/.zshrc"
+        ;;
+      ctx)
+        local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/dotctl"
+        [[ -f "$state_dir/env" ]] && source "$state_dir/env"
+        ;;
+    esac
+  fi
+  return $ret
+}
+```
+
+This ensures that:
+- `dotctl sync` reloads the shell to pick up any changed PATH, aliases, or env vars
+- `dotctl ctx work` sources the env file (same behavior as the `ctx` shorthand)
+
+Without this wrapper, `dotctl ctx` will switch context on disk but your current shell won't see the new env vars until the next shell start. The `ctx` function always handles this, but if you call `dotctl ctx` directly you need the wrapper.
+
 ## Bash support
 
 ```bash
@@ -93,5 +124,27 @@ eval "$(dotctl shell-init bash)"
 ```
 
 The bash variant provides the same `ctx` function. Chdir hook and guards work identically.
+
+Bash equivalent of the `dotctl` wrapper:
+
+```bash
+dotctl() {
+  command dotctl "$@"
+  local ret=$?
+  if [[ $ret -eq 0 ]]; then
+    case "$1" in
+      sync)
+        echo "Reloading shell..."
+        source ~/.bashrc
+        ;;
+      ctx)
+        local state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/dotctl"
+        [[ -f "$state_dir/env" ]] && source "$state_dir/env"
+        ;;
+    esac
+  fi
+  return $ret
+}
+```
 
 Note: `dotctl shell-init install` currently only writes the zsh file. For bash, use the eval approach.
