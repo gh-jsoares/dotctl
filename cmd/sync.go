@@ -52,9 +52,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 			Enabled: orchestrator.HasSubmodules,
 		},
 		{
-			ID:   "nix-darwin",
-			Name: "nix-darwin switch",
-			RunW: orchestrator.NixDarwinSwitchW,
+			ID:          "nix-darwin",
+			Name:        "nix-darwin switch",
+			RunW:        orchestrator.NixDarwinSwitchW,
+			Interactive: true,
 			Enabled: func(cfg *config.Config) bool {
 				return !syncDotfilesOnly && orchestrator.HasFlake(cfg)
 			},
@@ -68,10 +69,11 @@ func runSync(cmd *cobra.Command, args []string) error {
 			},
 		},
 		{
-			ID:      "stow",
-			Name:    "stow dotfiles",
-			RunW:    orchestrator.StowAllW,
-			Enabled: orchestrator.HasStow,
+			ID:          "stow",
+			Name:        "stow dotfiles",
+			RunW:        orchestrator.StowAllW,
+			Interactive: true,
+			Enabled:     orchestrator.HasStow,
 		},
 		{
 			ID:   "sheldon",
@@ -112,18 +114,30 @@ func runSync(cmd *cobra.Command, args []string) error {
 		coreIdx++
 		totalSteps++
 		st := ui.StepStartWithCounter(step.Name, coreIdx, len(enabledSteps))
-		st.StartSpin()
 
-		pipe := ui.NewPipeCmd(st)
-		if err := orchestrator.RunStep(step, cfg, pipe.Writer()); err != nil {
+		if step.Interactive {
+			// Interactive steps get raw terminal — no spinner, no pipe
+			fmt.Println()
+			if err := orchestrator.RunStep(step, cfg, nil); err != nil {
+				st.Fail(err)
+				failedSteps++
+				ui.Summary(totalSteps, failedSteps, time.Since(syncStart))
+				return fmt.Errorf("%s failed: %w", step.Name, err)
+			}
+			st.Success()
+		} else {
+			st.StartSpin()
+			pipe := ui.NewPipeCmd(st)
+			if err := orchestrator.RunStep(step, cfg, pipe.Writer()); err != nil {
+				pipe.Flush()
+				st.Fail(err)
+				failedSteps++
+				ui.Summary(totalSteps, failedSteps, time.Since(syncStart))
+				return fmt.Errorf("%s failed: %w", step.Name, err)
+			}
 			pipe.Flush()
-			st.Fail(err)
-			failedSteps++
-			ui.Summary(totalSteps, failedSteps, time.Since(syncStart))
-			return fmt.Errorf("%s failed: %w", step.Name, err)
+			st.Success()
 		}
-		pipe.Flush()
-		st.Success()
 	}
 
 	// Run plugins

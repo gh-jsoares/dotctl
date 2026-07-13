@@ -14,15 +14,25 @@ import (
 )
 
 type Step struct {
-	ID      string
-	Name    string
-	Run     func(cfg *config.Config) error
-	RunW    func(cfg *config.Config, w io.Writer) error
-	Enabled func(cfg *config.Config) bool
+	ID          string
+	Name        string
+	Run         func(cfg *config.Config) error
+	RunW        func(cfg *config.Config, w io.Writer) error
+	Enabled     func(cfg *config.Config) bool
+	Interactive bool
 }
 
 // RunStep executes a step, piping output through w if the step supports it.
+// Interactive steps bypass the writer and use raw stdout/stderr/stdin.
 func RunStep(step Step, cfg *config.Config, w io.Writer) error {
+	if step.Interactive {
+		if step.Run != nil {
+			return step.Run(cfg)
+		}
+		if step.RunW != nil {
+			return step.RunW(cfg, os.Stdout)
+		}
+	}
 	if step.RunW != nil {
 		return step.RunW(cfg, w)
 	}
