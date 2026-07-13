@@ -298,7 +298,13 @@ func MiseInstallW(cfg *config.Config, w io.Writer) error {
 	cmd := exec.Command("mise", "install")
 	cmd.Stdout = w
 	cmd.Stderr = w
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	prune := exec.Command("mise", "prune", "--yes")
+	prune.Stdout = w
+	prune.Stderr = w
+	return prune.Run()
 }
 
 func HasFlake(cfg *config.Config) bool {
