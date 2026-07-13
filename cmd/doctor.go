@@ -9,6 +9,7 @@ import (
 	"github.com/gh-jsoares/dotctl/internal/config"
 	"github.com/gh-jsoares/dotctl/internal/context"
 	"github.com/gh-jsoares/dotctl/internal/plugin"
+	"github.com/gh-jsoares/dotctl/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -37,13 +38,15 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		{"required tools installed", checkTools},
 	}
 
+	ui.Section("Health Checks")
 	failed := 0
 	for _, c := range checks {
+		st := ui.StepStart(c.name)
 		if err := c.fn(); err != nil {
-			fmt.Fprintf(os.Stdout, "✗ %s: %s\n", c.name, err)
+			st.Fail(err)
 			failed++
 		} else {
-			fmt.Fprintf(os.Stdout, "✓ %s\n", c.name)
+			st.Success()
 		}
 	}
 
@@ -57,7 +60,6 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	if failed > 0 {
 		return fmt.Errorf("%d check(s) failed", failed)
 	}
-	fmt.Fprintln(os.Stdout, "\nAll checks passed.")
 	return nil
 }
 
@@ -78,14 +80,19 @@ func runPluginDoctor(cfg *config.Config) int {
 	}
 
 	enabled := plugin.EvaluateConditions(filtered, cfg, currentContext)
+	if len(enabled) == 0 {
+		return 0
+	}
 
+	ui.Section("Plugin Checks")
 	failed := 0
 	for _, p := range enabled {
+		st := ui.StepStart(p.Name)
 		if err := plugin.Execute(p, "doctor", cfg, currentContext); err != nil {
-			fmt.Fprintf(os.Stdout, "✗ plugin/%s: %v\n", p.Name, err)
+			st.Fail(err)
 			failed++
 		} else {
-			fmt.Fprintf(os.Stdout, "✓ plugin/%s\n", p.Name)
+			st.Success()
 		}
 	}
 	return failed

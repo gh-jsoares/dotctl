@@ -3,11 +3,13 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/gh-jsoares/dotctl/internal/config"
 	"github.com/gh-jsoares/dotctl/internal/context"
 	"github.com/gh-jsoares/dotctl/internal/orchestrator"
 	"github.com/gh-jsoares/dotctl/internal/plugin"
+	"github.com/gh-jsoares/dotctl/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -28,6 +30,8 @@ func init() {
 }
 
 func runSync(cmd *cobra.Command, args []string) error {
+	syncStart := time.Now()
+
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -43,9 +47,9 @@ func runSync(cmd *cobra.Command, args []string) error {
 			},
 		},
 		{
-			ID:   "submodule-update",
-			Name: "submodule update",
-			Run:  orchestrator.SubmoduleUpdate,
+			ID:      "submodule-update",
+			Name:    "submodule update",
+			Run:     orchestrator.SubmoduleUpdate,
 			Enabled: orchestrator.HasSubmodules,
 		},
 		{
@@ -89,44 +93,62 @@ func runSync(cmd *cobra.Command, args []string) error {
 	}
 
 	// Run core steps
+	ui.Section("Core")
+	totalSteps := 0
+	failedSteps := 0
+
 	for _, step := range steps {
 		if !step.Enabled(cfg) {
-			fmt.Fprintf(os.Stdout, "⊘ %s (skipped)\n", step.Name)
+			st := ui.StepStart(step.Name)
+			st.Skip("not applicable")
 			continue
 		}
 
-		fmt.Fprintf(os.Stdout, "▸ %s\n", step.Name)
+		totalSteps++
+		st := ui.StepStart(step.Name)
 		if err := step.Run(cfg); err != nil {
+			st.Fail(err)
+			failedSteps++
+			ui.Summary(totalSteps, failedSteps, time.Since(syncStart))
 			return fmt.Errorf("%s failed: %w", step.Name, err)
 		}
-		fmt.Fprintf(os.Stdout, "✓ %s\n", step.Name)
+		st.Success()
 	}
 
 	// Run plugins
-	if err := runPlugins(cfg, "sync"); err != nil {
+	pluginFailed, err := runPluginsUI(cfg, "sync")
+	if err != nil {
+		failedSteps += pluginFailed
+		ui.Summary(totalSteps+pluginFailed, failedSteps, time.Since(syncStart))
 		return err
 	}
+	totalSteps += pluginFailed
 
-	fmt.Fprintln(os.Stdout, "\n✓ Sync complete.")
+	ui.Summary(totalSteps, failedSteps, time.Since(syncStart))
 	return nil
 }
 
 func runPlugins(cfg *config.Config, hook string) error {
+	_, err := runPluginsUI(cfg, hook)
+	return err
+}
+
+func runPluginsUI(cfg *config.Config, hook string) (int, error) {
 	plugins, err := plugin.Discover(cfg)
 	if err != nil {
-		return fmt.Errorf("discovering plugins: %w", err)
+		return 0, fmt.Errorf("discovering plugins: %w", err)
 	}
 	if len(plugins) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	if err := plugin.Validate(plugins); err != nil {
-		return fmt.Errorf("validating plugins: %w", err)
+		return 0, fmt.Errorf("validating plugins: %w", err)
 	}
 
 	filtered := plugin.FilterByHook(plugins, hook)
 	if len(filtered) == 0 {
-		return nil
+		return 0, nil
 	}
 
 	var currentContext string
@@ -135,23 +157,37 @@ func runPlugins(cfg *config.Config, hook string) error {
 	}
 
 	enabled := plugin.EvaluateConditions(filtered, cfg, currentContext)
+	if len(enabled) == 0 {
+		return 0, nil
+	}
 
 	ordered, err := plugin.ResolveOrder(enabled)
 	if err != nil {
-		return fmt.Errorf("resolving plugin order: %w", err)
+		return 0, fmt.Errorf("resolving plugin order: %w", err)
 	}
+
+	ui.Section("Plugins")
+	ran := 0
 
 	for _, p := range ordered {
-		fmt.Fprintf(os.Stdout, "▸ %s\n", p.Name)
-		if err := plugin.Execute(p, hook, cfg, currentContext); err != nil {
+		ran++
+		st := ui.StepStart(p.Name)
+
+		spinner := ui.NewSpinner(os.Stderr, p.Name)
+		spinner.Start()
+		execErr := plugin.Execute(p, hook, cfg, currentContext)
+		spinner.Stop()
+
+		if execErr != nil {
 			if p.Options.ContinueOnError {
-				fmt.Fprintf(os.Stderr, "  ⚠ %s failed: %v (continuing)\n", p.Name, err)
+				st.Warn(execErr)
 				continue
 			}
-			return fmt.Errorf("plugin %s failed: %w", p.Name, err)
+			st.Fail(execErr)
+			return ran, fmt.Errorf("plugin %s failed: %w", p.Name, execErr)
 		}
-		fmt.Fprintf(os.Stdout, "✓ %s\n", p.Name)
+		st.Success()
 	}
 
-	return nil
+	return ran, nil
 }

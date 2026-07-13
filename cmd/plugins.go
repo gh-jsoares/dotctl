@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gh-jsoares/dotctl/internal/config"
 	"github.com/gh-jsoares/dotctl/internal/context"
 	"github.com/gh-jsoares/dotctl/internal/plugin"
+	"github.com/gh-jsoares/dotctl/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -41,6 +43,12 @@ func init() {
 	rootCmd.AddCommand(pluginsCmd)
 }
 
+var (
+	pluginGreen = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	pluginDim   = lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	pluginYellow = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
+)
+
 func runPluginsList(cmd *cobra.Command, args []string) error {
 	cfg, err := config.Load()
 	if err != nil {
@@ -62,11 +70,17 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 		currentContext, _ = mgr.Current()
 	}
 
+	ui.Section("Plugins")
 	for _, p := range plugins {
 		enabled := plugin.EvaluateConditions([]*plugin.Plugin{p}, cfg, currentContext)
-		status := "✓"
-		if len(enabled) == 0 {
-			status = "⊘"
+
+		var status, name string
+		if len(enabled) > 0 {
+			status = pluginGreen.Render("✓")
+			name = p.Name
+		} else {
+			status = pluginYellow.Render("○")
+			name = pluginDim.Render(p.Name)
 		}
 
 		hooks := ""
@@ -80,7 +94,7 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 			hooks += " doctor"
 		}
 
-		fmt.Fprintf(os.Stdout, "%s %-20s %s [%s]\n", status, p.Name, p.Description, hooks)
+		fmt.Fprintf(os.Stdout, "  %s %-20s %s %s\n", status, name, pluginDim.Render(p.Description), pluginDim.Render("["+hooks+" ]"))
 	}
 
 	return nil
@@ -106,7 +120,7 @@ func runPluginsValidate(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stdout, "✓ All %d plugins valid.\n", len(plugins))
+	fmt.Fprintf(os.Stdout, "  %s All %d plugins valid.\n", pluginGreen.Render("✓"), len(plugins))
 	return nil
 }
 
