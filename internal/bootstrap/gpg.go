@@ -74,11 +74,18 @@ func SetupGPGFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 		fmt.Printf("    %s\n\n", keyID)
 		fmt.Printf("  Add this key to your GitHub account:\n")
 		fmt.Printf("  https://github.com/settings/gpg/new\n\n")
-		fmt.Printf("  Public key block (paste this):\n\n")
-		for _, line := range strings.Split(pubkey, "\n") {
-			fmt.Printf("    %s\n", line)
+
+		if err := copyToClipboard(pubkey); err == nil {
+			fmt.Printf("  ✓ Public key copied to clipboard\n\n")
+		} else {
+			fmt.Printf("  Public key block:\n\n")
+			for _, line := range strings.Split(pubkey, "\n") {
+				fmt.Printf("    %s\n", line)
+			}
+			fmt.Println()
 		}
-		fmt.Printf("\n  Press Enter when done...")
+
+		fmt.Printf("  Press Enter when done...")
 		reader.ReadString('\n')
 	}
 
@@ -210,3 +217,4 @@ func gitConfigEmail(gitConfigName string) string {
 func nameFromContext(ctx string) string {
 	return "João Soares"
 }
+

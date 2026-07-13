@@ -87,7 +87,11 @@ func VerifySSHConnection(host string) error {
 
 func PromptAndWaitForSSHKey(reader *bufio.Reader, label, host, pubkey string) error {
 	fmt.Printf("\n  Public key for %q:\n\n", label)
-	fmt.Printf("    %s\n\n", pubkey)
+	if err := copyToClipboard(pubkey); err == nil {
+		fmt.Printf("  ✓ Public key copied to clipboard\n\n")
+	} else {
+		fmt.Printf("    %s\n\n", pubkey)
+	}
 	fmt.Printf("  Add this key to your GitHub account for host %q\n", host)
 	fmt.Printf("  https://github.com/settings/ssh/new\n\n")
 	fmt.Printf("  Press Enter when done...")
