@@ -79,6 +79,20 @@ func (m *Manager) Switch(name string) error {
 	return nil
 }
 
+// Refresh regenerates the env file for the current context.
+// Picks up changes to context TOML without a full switch.
+func (m *Manager) Refresh() error {
+	current, err := m.Current()
+	if err != nil || current == "" {
+		return nil
+	}
+	ctx, err := m.Load(current)
+	if err != nil {
+		return err
+	}
+	return m.generateEnvFile(current, ctx)
+}
+
 func (m *Manager) SetDefault(name string) error {
 	if _, err := m.Load(name); err != nil {
 		return err

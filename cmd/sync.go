@@ -76,6 +76,19 @@ func runSync(cmd *cobra.Command, args []string) error {
 			Enabled:     orchestrator.HasStow,
 		},
 		{
+			ID:   "refresh-context",
+			Name: "refresh context env",
+			Run:  orchestrator.RefreshContext,
+			Enabled: func(cfg *config.Config) bool {
+				mgr, err := context.NewManager()
+				if err != nil {
+					return false
+				}
+				current, _ := mgr.Current()
+				return current != ""
+			},
+		},
+		{
 			ID:   "sheldon",
 			Name: "sheldon lock",
 			RunW: orchestrator.SheldonLockW,

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/gh-jsoares/dotctl/internal/config"
+	"github.com/gh-jsoares/dotctl/internal/context"
 )
 
 type Step struct {
@@ -277,6 +278,14 @@ func resolveConflicts(conflicts []stowConflict, stowDir, home string) (bool, err
 	}
 
 	return true, nil
+}
+
+func RefreshContext(_ *config.Config) error {
+	mgr, err := context.NewManager()
+	if err != nil {
+		return nil
+	}
+	return mgr.Refresh()
 }
 
 func SheldonLock(cfg *config.Config) error {
