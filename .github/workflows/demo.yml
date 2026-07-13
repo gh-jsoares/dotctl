@@ -27,8 +27,8 @@ jobs:
           COMMIT=$(git rev-parse --short HEAD)
           go build -ldflags "-X github.com/gh-jsoares/dotctl/cmd.version=${VERSION} -X github.com/gh-jsoares/dotctl/cmd.commit=${COMMIT}" -o /usr/local/bin/dotctl .
 
-      - name: Install VHS
-        run: brew install vhs
+      - name: Install dependencies
+        run: brew install vhs stow
 
       - name: Setup minimal environment
         run: |
