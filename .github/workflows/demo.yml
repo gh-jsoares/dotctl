@@ -1,11 +1,6 @@
 name: Demo
 
 on:
-  push:
-    tags: ["v*"]
-    branches: [main]
-    paths:
-      - "demo.tape"
   workflow_dispatch:
 
 permissions:
