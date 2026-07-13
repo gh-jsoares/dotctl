@@ -61,12 +61,28 @@ dotctl ctx default personal
 dotctl sync
 ```
 
+## Shell Completions
+
+```sh
+# bash (add to ~/.bashrc)
+eval "$(dotctl completion bash)"
+
+# zsh (add to ~/.zshrc, before compinit)
+eval "$(dotctl completion zsh)"
+
+# fish (add to ~/.config/fish/config.fish)
+dotctl completion fish | source
+```
+
+See [docs/completions.md](docs/completions.md) for static generation and caching strategies.
+
 ## Documentation
 
 - [Configuration](docs/configuration.md) — config.toml and context definitions
 - [Bootstrap](docs/bootstrap.md) — fresh machine setup flow
 - [Context Switching](docs/context-switching.md) — how isolation works
 - [Shell Integration](docs/shell-integration.md) — shell init, guards, chdir hooks
+- [Shell Completions](docs/completions.md) — static cached generation for faster startup
 - [Plugins](docs/plugins.md) — extend sync/bootstrap/doctor with custom scripts
 - [Commands](docs/commands.md) — full command reference
 - [Dotfiles Repo](docs/dotfiles-repo.md) — how to structure your dotfiles for dotctl
