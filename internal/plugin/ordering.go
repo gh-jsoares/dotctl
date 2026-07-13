@@ -34,10 +34,10 @@ func ResolveOrder(plugins []*Plugin) ([]*Plugin, error) {
 
 	for _, p := range plugins {
 		pluginMap[p.Name] = p
-		if _, ok := inDegree[p.Name]; !ok {
-			inDegree[p.Name] = 0
-		}
+		inDegree[p.Name] = 0
+	}
 
+	for _, p := range plugins {
 		after := p.Ordering.After
 		if len(after) == 0 {
 			after = []string{"mise"}
