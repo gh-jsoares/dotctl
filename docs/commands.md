@@ -34,15 +34,36 @@ dotctl bootstrap [flags]
 Converge the system to the desired state. Run after pulling dotfiles changes.
 
 ```
-dotctl sync
+dotctl sync [flags]
 ```
 
-Steps:
-1. `darwin-rebuild switch` — apply nix-darwin config
-2. `stow -R` — re-stow all dotfile packages
-3. `mise install` — ensure all runtimes are present
+| Flag | Description |
+|------|-------------|
+| `--no-pull` | Skip `git pull` before syncing |
+| `--dotfiles-only` | Only pull and stow (skip nix, sheldon, mise) |
+
+Core steps (in order):
+1. `git pull` — pull dotfiles repo
+2. `submodule update` — sync and update submodules
+3. `nix-darwin switch` — apply nix-darwin config
+4. `commit flake.lock` — auto-commit if dirty
+5. `stow -R` — re-stow all dotfile packages
+6. `sheldon lock` — update zsh plugin lockfile
+7. `mise install` — ensure all runtimes are present
+
+After core steps, [plugins](plugins.md) run in dependency order.
 
 Each step is skipped gracefully if not applicable (no flake, no stow dir, no mise).
+
+## dotctl plugins
+
+Manage plugins. See [Plugins](plugins.md) for full documentation.
+
+```
+dotctl plugins list              # show discovered plugins and status
+dotctl plugins validate          # check all manifests for errors
+dotctl plugins run <name>        # manually run a plugin's sync hook
+```
 
 ## dotctl doctor
 
@@ -52,12 +73,14 @@ Validate environment health.
 dotctl doctor
 ```
 
-Checks:
+Built-in checks:
 - State directory exists
 - A context is set
 - Env file exists
 - Symlinks are valid (exist and point to real targets)
 - Required tools are installed (nix, darwin-rebuild, stow, mise, tmux, git, op)
+
+After built-in checks, any plugins with a `doctor` hook are run.
 
 ## dotctl project
 

@@ -58,6 +58,7 @@ dotctl sync
 - [Bootstrap](docs/bootstrap.md) — fresh machine setup flow
 - [Context Switching](docs/context-switching.md) — how isolation works
 - [Shell Integration](docs/shell-integration.md) — shell init, guards, chdir hooks
+- [Plugins](docs/plugins.md) — extend sync/bootstrap/doctor with custom scripts
 - [Commands](docs/commands.md) — full command reference
 - [Dotfiles Repo](docs/dotfiles-repo.md) — how to structure your dotfiles for dotctl
 

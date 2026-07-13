@@ -9,6 +9,12 @@ dotfiles/
 ├── contexts/              # context definitions (required for ctx switching)
 │   ├── work.toml
 │   └── personal.toml
+├── .dotctl/               # dotctl extensions (optional)
+│   └── plugins/           # custom orchestration plugins
+│       ├── my-tool/
+│       │   ├── plugin.toml
+│       │   └── sync.sh
+│       └── ...
 ├── flake.nix              # nix-darwin entry point (optional)
 ├── flake.lock
 └── stow/                  # GNU Stow packages (optional)
@@ -19,6 +25,12 @@ dotfiles/
 ```
 
 Only `contexts/` is required. Everything else is optional — dotctl skips steps that don't apply.
+
+## Plugins directory
+
+The `.dotctl/plugins/` directory holds custom orchestration steps that run during `sync`, `bootstrap`, or `doctor`. Each subdirectory is a plugin with a `plugin.toml` manifest and executable hook scripts.
+
+See [Plugins](plugins.md) for the full authoring guide.
 
 ## Contexts directory
 
