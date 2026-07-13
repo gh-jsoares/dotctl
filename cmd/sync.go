@@ -5,7 +5,9 @@ import (
 	"os"
 
 	"github.com/gh-jsoares/dotctl/internal/config"
+	"github.com/gh-jsoares/dotctl/internal/context"
 	"github.com/gh-jsoares/dotctl/internal/orchestrator"
+	"github.com/gh-jsoares/dotctl/internal/plugin"
 	"github.com/spf13/cobra"
 )
 
@@ -15,7 +17,7 @@ var syncDotfilesOnly bool
 var syncCmd = &cobra.Command{
 	Use:   "sync",
 	Short: "Sync environment to desired state",
-	Long:  "Rebuild nix-darwin, re-stow dotfiles, and run mise install. Skips steps that aren't applicable.",
+	Long:  "Rebuild nix-darwin, re-stow dotfiles, and run plugins. Skips steps that aren't applicable.",
 	RunE:  runSync,
 }
 
@@ -33,18 +35,21 @@ func runSync(cmd *cobra.Command, args []string) error {
 
 	steps := []orchestrator.Step{
 		{
-			Name:    "git pull",
-			Run:     orchestrator.GitPull,
+			ID:   "git-pull",
+			Name: "git pull",
+			Run:  orchestrator.GitPull,
 			Enabled: func(cfg *config.Config) bool {
 				return !syncNoPull && orchestrator.HasGitRepo(cfg)
 			},
 		},
 		{
-			Name:    "submodule update",
-			Run:     orchestrator.SubmoduleUpdate,
+			ID:   "submodule-update",
+			Name: "submodule update",
+			Run:  orchestrator.SubmoduleUpdate,
 			Enabled: orchestrator.HasSubmodules,
 		},
 		{
+			ID:   "nix-darwin",
 			Name: "nix-darwin switch",
 			Run:  orchestrator.NixDarwinSwitch,
 			Enabled: func(cfg *config.Config) bool {
@@ -52,6 +57,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 			},
 		},
 		{
+			ID:   "commit-flake-lock",
 			Name: "commit flake.lock",
 			Run:  orchestrator.CommitLockfile,
 			Enabled: func(cfg *config.Config) bool {
@@ -59,11 +65,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 			},
 		},
 		{
+			ID:      "stow",
 			Name:    "stow dotfiles",
 			Run:     orchestrator.StowAll,
 			Enabled: orchestrator.HasStow,
 		},
 		{
+			ID:   "sheldon",
 			Name: "sheldon lock",
 			Run:  orchestrator.SheldonLock,
 			Enabled: func(cfg *config.Config) bool {
@@ -71,37 +79,19 @@ func runSync(cmd *cobra.Command, args []string) error {
 			},
 		},
 		{
+			ID:   "mise",
 			Name: "mise install",
 			Run:  orchestrator.MiseInstall,
 			Enabled: func(cfg *config.Config) bool {
 				return !syncDotfilesOnly && orchestrator.HasMise(cfg)
 			},
 		},
-		{
-			Name:    "grimoire install",
-			Run:     orchestrator.GrimoireInstall,
-			Enabled: orchestrator.HasGrimoireConfig,
-		},
-		{
-			Name:    "simple-bar-server",
-			Run:     orchestrator.SimpleBarServer,
-			Enabled: orchestrator.HasSimpleBarServer,
-		},
-		{
-			Name:    "tmux reload",
-			Run:     orchestrator.TmuxReload,
-			Enabled: orchestrator.HasTmux,
-		},
-		{
-			Name:    "aerospace reload",
-			Run:     orchestrator.AerospaceReload,
-			Enabled: orchestrator.HasAerospace,
-		},
 	}
 
+	// Run core steps
 	for _, step := range steps {
 		if !step.Enabled(cfg) {
-			fmt.Fprintf(os.Stdout, "⊘ %s (skipped — not available)\n", step.Name)
+			fmt.Fprintf(os.Stdout, "⊘ %s (skipped)\n", step.Name)
 			continue
 		}
 
@@ -112,9 +102,56 @@ func runSync(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stdout, "✓ %s\n", step.Name)
 	}
 
+	// Run plugins
+	if err := runPlugins(cfg, "sync"); err != nil {
+		return err
+	}
+
 	fmt.Fprintln(os.Stdout, "\n✓ Sync complete.")
-	fmt.Fprintln(os.Stdout, "\n  Übersicht: set widget folder to ~/dotfilesv2/dotfiles/ubersicht/widgets")
-	fmt.Fprintln(os.Stdout, "             enable 'Launch at Login' and set shell to '/bin/bash -l'")
-	fmt.Fprintln(os.Stdout, "\nReload your shell with: source ~/.config/zsh/.zshrc")
+	return nil
+}
+
+func runPlugins(cfg *config.Config, hook string) error {
+	plugins, err := plugin.Discover(cfg)
+	if err != nil {
+		return fmt.Errorf("discovering plugins: %w", err)
+	}
+	if len(plugins) == 0 {
+		return nil
+	}
+
+	if err := plugin.Validate(plugins); err != nil {
+		return fmt.Errorf("validating plugins: %w", err)
+	}
+
+	filtered := plugin.FilterByHook(plugins, hook)
+	if len(filtered) == 0 {
+		return nil
+	}
+
+	var currentContext string
+	if mgr, err := context.NewManager(); err == nil {
+		currentContext, _ = mgr.Current()
+	}
+
+	enabled := plugin.EvaluateConditions(filtered, cfg, currentContext)
+
+	ordered, err := plugin.ResolveOrder(enabled)
+	if err != nil {
+		return fmt.Errorf("resolving plugin order: %w", err)
+	}
+
+	for _, p := range ordered {
+		fmt.Fprintf(os.Stdout, "▸ %s\n", p.Name)
+		if err := plugin.Execute(p, hook, cfg, currentContext); err != nil {
+			if p.Options.ContinueOnError {
+				fmt.Fprintf(os.Stderr, "  ⚠ %s failed: %v (continuing)\n", p.Name, err)
+				continue
+			}
+			return fmt.Errorf("plugin %s failed: %w", p.Name, err)
+		}
+		fmt.Fprintf(os.Stdout, "✓ %s\n", p.Name)
+	}
+
 	return nil
 }

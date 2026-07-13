@@ -118,6 +118,14 @@ func runBootstrap(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stdout, "✓ Default context: %s\n\n", opts.DefaultContext)
 	}
 
+	// Run plugin bootstrap hooks
+	reloadedCfg, _ := config.Load()
+	if reloadedCfg != nil {
+		if err := runPlugins(reloadedCfg, "bootstrap"); err != nil {
+			fmt.Fprintf(os.Stderr, "  ⚠ plugin bootstrap: %v\n", err)
+		}
+	}
+
 	// Run doctor
 	fmt.Fprintln(os.Stdout, "▸ Running doctor...")
 	if err := runDoctor(cmd, nil); err != nil {

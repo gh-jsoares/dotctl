@@ -8,6 +8,7 @@ import (
 
 	"github.com/gh-jsoares/dotctl/internal/config"
 	"github.com/gh-jsoares/dotctl/internal/context"
+	"github.com/gh-jsoares/dotctl/internal/plugin"
 	"github.com/spf13/cobra"
 )
 
@@ -46,11 +47,48 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Run plugin doctor hooks
+	cfg, err := config.Load()
+	if err == nil {
+		pluginFailed := runPluginDoctor(cfg)
+		failed += pluginFailed
+	}
+
 	if failed > 0 {
 		return fmt.Errorf("%d check(s) failed", failed)
 	}
 	fmt.Fprintln(os.Stdout, "\nAll checks passed.")
 	return nil
+}
+
+func runPluginDoctor(cfg *config.Config) int {
+	plugins, err := plugin.Discover(cfg)
+	if err != nil || len(plugins) == 0 {
+		return 0
+	}
+
+	filtered := plugin.FilterByHook(plugins, "doctor")
+	if len(filtered) == 0 {
+		return 0
+	}
+
+	var currentContext string
+	if mgr, err := context.NewManager(); err == nil {
+		currentContext, _ = mgr.Current()
+	}
+
+	enabled := plugin.EvaluateConditions(filtered, cfg, currentContext)
+
+	failed := 0
+	for _, p := range enabled {
+		if err := plugin.Execute(p, "doctor", cfg, currentContext); err != nil {
+			fmt.Fprintf(os.Stdout, "✗ plugin/%s: %v\n", p.Name, err)
+			failed++
+		} else {
+			fmt.Fprintf(os.Stdout, "✓ plugin/%s\n", p.Name)
+		}
+	}
+	return failed
 }
 
 func checkStateDir() error {
