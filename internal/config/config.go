@@ -12,6 +12,11 @@ type Config struct {
 	Dotctl   DotctlConfig   `toml:"dotctl"`
 	Machine  string         `toml:"machine"`
 	Guards   []GuardConfig  `toml:"guards"`
+	Plugins  PluginsConfig  `toml:"plugins"`
+}
+
+type PluginsConfig struct {
+	Disabled []string `toml:"disabled"`
 }
 
 type DotfilesConfig struct {

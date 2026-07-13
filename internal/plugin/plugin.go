@@ -6,6 +6,7 @@ type Plugin struct {
 	Name        string     `toml:"name"`
 	Description string     `toml:"description"`
 	Dir         string     `toml:"-"`
+	Builtin     bool       `toml:"-"`
 	Hooks       Hooks      `toml:"hooks"`
 	Conditions  Conditions `toml:"conditions"`
 	Ordering    Ordering   `toml:"ordering"`

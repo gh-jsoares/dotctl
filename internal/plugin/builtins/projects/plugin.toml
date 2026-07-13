@@ -1,0 +1,15 @@
+name = "projects"
+description = "Ensure project directories exist for the current context"
+
+[hooks]
+sync = "sync.sh"
+
+[conditions]
+check = "test -n \"$PROJECTS_DIR\""
+
+[ordering]
+after = ["stow"]
+priority = 5
+
+[options]
+continue_on_error = true

@@ -10,13 +10,59 @@ import (
 )
 
 func Discover(cfg *config.Config) ([]*Plugin, error) {
-	pluginsDir := filepath.Join(cfg.Dotfiles.Path, ".dotctl", "plugins")
+	disabled := make(map[string]bool)
+	for _, name := range cfg.Plugins.Disabled {
+		disabled[name] = true
+	}
 
-	if _, err := os.Stat(pluginsDir); err != nil {
+	// Discover builtins
+	builtinPlugins, err := discoverFromDir(extractedBuiltinsDir())
+	if err != nil {
+		builtinPlugins = nil
+	}
+
+	// Discover user plugins
+	userDir := filepath.Join(cfg.Dotfiles.Path, ".dotctl", "plugins")
+	userPlugins, err := discoverFromDir(userDir)
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge: user plugins override builtins with same name
+	merged := make(map[string]*Plugin)
+	for _, p := range builtinPlugins {
+		p.Builtin = true
+		merged[p.Name] = p
+	}
+	for _, p := range userPlugins {
+		merged[p.Name] = p
+	}
+
+	// Filter disabled and collect
+	var plugins []*Plugin
+	for _, p := range merged {
+		if disabled[p.Name] {
+			continue
+		}
+		plugins = append(plugins, p)
+	}
+
+	sort.Slice(plugins, func(i, j int) bool {
+		return plugins[i].Ordering.Priority < plugins[j].Ordering.Priority
+	})
+
+	return plugins, nil
+}
+
+func discoverFromDir(dir string) ([]*Plugin, error) {
+	if dir == "" {
+		return nil, nil
+	}
+	if _, err := os.Stat(dir); err != nil {
 		return nil, nil
 	}
 
-	entries, err := os.ReadDir(pluginsDir)
+	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, fmt.Errorf("reading plugins dir: %w", err)
 	}
@@ -27,7 +73,7 @@ func Discover(cfg *config.Config) ([]*Plugin, error) {
 			continue
 		}
 
-		manifest := filepath.Join(pluginsDir, e.Name(), "plugin.toml")
+		manifest := filepath.Join(dir, e.Name(), "plugin.toml")
 		if _, err := os.Stat(manifest); err != nil {
 			continue
 		}
@@ -37,7 +83,7 @@ func Discover(cfg *config.Config) ([]*Plugin, error) {
 			return nil, fmt.Errorf("parsing plugin %q: %w", e.Name(), err)
 		}
 
-		p.Dir = filepath.Join(pluginsDir, e.Name())
+		p.Dir = filepath.Join(dir, e.Name())
 		if p.Name == "" {
 			p.Name = e.Name()
 		}
@@ -45,11 +91,16 @@ func Discover(cfg *config.Config) ([]*Plugin, error) {
 		plugins = append(plugins, p)
 	}
 
-	sort.Slice(plugins, func(i, j int) bool {
-		return plugins[i].Ordering.Priority < plugins[j].Ordering.Priority
-	})
-
 	return plugins, nil
+}
+
+// extractedBuiltinsDir extracts embedded builtins to cache and returns the path.
+func extractedBuiltinsDir() string {
+	dir, err := extractBuiltins()
+	if err != nil {
+		return ""
+	}
+	return dir
 }
 
 func FilterByHook(plugins []*Plugin, hook string) []*Plugin {

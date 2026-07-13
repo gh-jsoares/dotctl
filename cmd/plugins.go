@@ -94,7 +94,11 @@ func runPluginsList(cmd *cobra.Command, args []string) error {
 			hooks += " doctor"
 		}
 
-		fmt.Fprintf(os.Stdout, "  %s %-20s %s %s\n", status, name, pluginDim.Render(p.Description), pluginDim.Render("["+hooks+" ]"))
+		tag := ""
+		if p.Builtin {
+			tag = pluginDim.Render(" (builtin)")
+		}
+		fmt.Fprintf(os.Stdout, "  %s %-20s %s%s %s\n", status, name, pluginDim.Render(p.Description), tag, pluginDim.Render("["+hooks+" ]"))
 	}
 
 	return nil
