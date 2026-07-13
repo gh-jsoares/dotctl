@@ -150,7 +150,6 @@ func checkSymlinks() error {
 	links := []string{
 		filepath.Join(home, ".aws"),
 		filepath.Join(home, ".kube"),
-		filepath.Join(home, ".config", "git", "config-current"),
 	}
 
 	for _, link := range links {

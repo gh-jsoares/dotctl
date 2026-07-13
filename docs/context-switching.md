@@ -40,11 +40,12 @@ DOCKER_CONFIG=~/.docker-personal   # when context = personal
 When you run `ctx work`:
 
 1. Symlinks are updated (`~/.aws` → `~/.aws-work`, etc.)
-2. Git config symlink updates (`~/.config/git/config-current` → `config-work`)
+2. Git configs are generated (identity per context, `includeIf` by project dir)
 3. `current-context` state file is written
 4. Env file is generated with all `[env]` vars + resolved `[lazy]` secrets
-5. If inside tmux: server environment is updated (new panes inherit)
-6. Shell function sources the env file in the current shell
+5. Context-dirs mapping is written (for shell mismatch warnings)
+6. If inside tmux: server environment is updated (new panes inherit)
+7. Shell function sources the env file in the current shell
 
 ## Idempotency
 
@@ -52,21 +53,31 @@ Switching to the context you're already in is a no-op — unless the state is in
 
 ## Git identity
 
-dotctl manages git identity via config file symlinks:
+dotctl generates git config files from context TOML definitions:
 
 ```
 ~/.config/git/
-├── config              # base config with includeIf rules
-├── config-work         # [user] name, email, signing key for work
-├── config-personal     # [user] name, email, signing key for personal
-└── config-current      # symlink → config-work OR config-personal
+├── config              # generated: includes config-shared + includeIf rules
+├── config-shared       # stowed: core, delta, merge settings
+├── config-work         # generated: [user] name, email, signing key
+└── config-personal     # generated: [user] name, email, signing key
 ```
 
-The base `config` uses both approaches:
-- `includeIf "gitdir:~/work/"` — path-based auto-detection
-- `include path = config-current` — fallback for repos outside standard paths
+Identity is determined by **project directory**, not active context:
+- The default context identity applies everywhere
+- `includeIf "gitdir:~/projects/work/**"` overrides with work identity
 
-This means repos under `~/work/` always use the work identity regardless of context, while random clones in `/tmp` use whatever context is active.
+This means repos under `~/projects/work/` always use the work identity, even if your active context is personal. No accidental commits with the wrong email.
+
+The identity fields come from your context TOML:
+
+```toml
+[identity]
+name = "João Soares"
+email = "jsoares.public@gmail.com"
+ssh_key = "id_ed25519_personal"
+gpg_key_source = "op://Personal/GPG/private_key"
+```
 
 ## Default context
 
@@ -76,19 +87,41 @@ ctx default work    # new shells start in work context
 
 The default is loaded by shell integration on startup (sources the env file).
 
-## Project detection
+## Mismatch warnings
 
-Place a `.dotctx` file in any repo:
+dotctl warns when your CWD is in a project dir that doesn't match your active context:
+
 ```
-context = "work"
+⚠ wrong context: in work dir but ctx is personal
 ```
 
-The shell chdir hook warns on mismatch:
-```
-⚠ This repo prefers context 'work'. Current: 'personal'. Run: ctx work
-```
+This fires on:
+- `cd` into a mismatched project dir (shell `chpwd` hook)
+- `dotctl ctx` switch while already in a mismatched dir
+- `dotctl status` and `dotctl doctor`
 
 No automatic switching — just a warning. You stay in control.
+
+## Prompt integration
+
+dotctl exports `DOTCTL_CONTEXT` and `DOTCTL_CONTEXT_ICON` to the env file. Configure your prompt (starship, p10k, etc.) to display the active context.
+
+Example starship config:
+
+```toml
+[custom.dotctl_ctx]
+command = 'echo "${DOTCTL_CONTEXT_ICON:-⚙} ${DOTCTL_CONTEXT}"'
+when = '[ -n "$DOTCTL_CONTEXT" ]'
+style = "bold purple"
+format = "[$output]($style) "
+```
+
+Set the icon per context in your TOML:
+
+```toml
+[prompt]
+icon = "🏠"
+```
 
 ## Tmux integration
 

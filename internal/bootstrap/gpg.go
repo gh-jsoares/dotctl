@@ -13,20 +13,16 @@ import (
 
 func SetupGPGFromContexts(reader *bufio.Reader, contexts map[string]*context.ContextDef) error {
 	for name, ctx := range contexts {
-		if ctx.Identity.GitConfig == "" {
+		if ctx.Identity.Email == "" {
+			fmt.Printf("  ⊘ %s: no email in identity, skipping GPG\n", name)
 			continue
 		}
-
-		email := gitConfigEmail(ctx.Identity.GitConfig)
-		if email == "" {
-			fmt.Printf("  ⊘ %s: no email in git config, skipping GPG\n", name)
-			continue
-		}
+		email := ctx.Identity.Email
 
 		// Check if key already exists locally
 		if keyID := findGPGKey(email); keyID != "" {
 			fmt.Printf("  ✓ GPG key for %s already exists: %s\n", name, keyID)
-			if err := writeGitSigningConfig(ctx.Identity.GitConfig, keyID); err != nil {
+			if err := writeGitSigningConfig(name, keyID); err != nil {
 				return err
 			}
 			continue
@@ -43,7 +39,7 @@ func SetupGPGFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 					fmt.Printf("  ✓ GPG key imported from 1Password.\n")
 					keyID := findGPGKey(email)
 					if keyID != "" {
-						if err := writeGitSigningConfig(ctx.Identity.GitConfig, keyID); err != nil {
+						if err := writeGitSigningConfig(name, keyID); err != nil {
 							return err
 						}
 					}
@@ -54,13 +50,17 @@ func SetupGPGFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 
 		// Generate new key
 		fmt.Printf("  Generating GPG key for %s (%s)...\n", name, email)
-		keyID, err := generateGPGKey(name, email)
+		realName := ctx.Identity.Name
+		if realName == "" {
+			realName = name
+		}
+		keyID, err := generateGPGKey(realName, email)
 		if err != nil {
 			return fmt.Errorf("generating GPG key for %q: %w", name, err)
 		}
 		fmt.Printf("  ✓ Generated key: %s\n", keyID)
 
-		if err := writeGitSigningConfig(ctx.Identity.GitConfig, keyID); err != nil {
+		if err := writeGitSigningConfig(name, keyID); err != nil {
 			return err
 		}
 
@@ -122,7 +122,7 @@ Name-Real: %s
 Name-Email: %s
 Expire-Date: 0
 %%commit
-`, nameFromContext(name), email)
+`, name, email)
 
 	cmd := exec.Command("gpg", "--batch", "--gen-key")
 	cmd.Stdin = strings.NewReader(batchInput)
@@ -160,29 +160,24 @@ func importGPGFromOP(ref string) error {
 	return cmd.Run()
 }
 
-func writeGitSigningConfig(gitConfigName, keyID string) error {
+func writeGitSigningConfig(ctxName, keyID string) error {
 	home, _ := os.UserHomeDir()
-	configPath := filepath.Join(home, ".config", "git", gitConfigName)
+	configPath := filepath.Join(home, ".config", "git", "config-"+ctxName)
 
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", configPath, err)
-	}
-
+	data, _ := os.ReadFile(configPath)
 	content := string(data)
 
-	// Check if signing is already configured
 	if strings.Contains(content, "signingkey") {
 		return nil
 	}
 
-	// Append signing config to [user] section
 	if strings.Contains(content, "[user]") {
 		content = strings.Replace(content, "[user]",
 			fmt.Sprintf("[user]\n    signingkey = %s", keyID), 1)
+	} else {
+		content += fmt.Sprintf("\n[user]\n    signingkey = %s\n", keyID)
 	}
 
-	// Add commit and tag signing sections
 	if !strings.Contains(content, "[commit]") {
 		content += "\n[commit]\n    gpgsign = true\n"
 	}
@@ -193,28 +188,4 @@ func writeGitSigningConfig(gitConfigName, keyID string) error {
 	return os.WriteFile(configPath, []byte(content), 0o644)
 }
 
-func gitConfigEmail(gitConfigName string) string {
-	home, _ := os.UserHomeDir()
-	configPath := filepath.Join(home, ".config", "git", gitConfigName)
-
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return ""
-	}
-
-	for _, line := range strings.Split(string(data), "\n") {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "email") {
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) == 2 {
-				return strings.TrimSpace(parts[1])
-			}
-		}
-	}
-	return ""
-}
-
-func nameFromContext(ctx string) string {
-	return "João Soares"
-}
 

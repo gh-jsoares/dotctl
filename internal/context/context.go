@@ -30,6 +30,8 @@ type SSHConfig struct {
 }
 
 type IdentityConfig struct {
+	Name         string `toml:"name"`
+	Email        string `toml:"email"`
 	GitConfig    string `toml:"git_config"`
 	SSHKey       string `toml:"ssh_key"`
 	GPGKey       string `toml:"gpg_key"`
@@ -85,6 +87,10 @@ func (m *Manager) Switch(name string) error {
 		return fmt.Errorf("generating context dirs: %w", err)
 	}
 
+	if err := m.GenerateGitConfigs(name); err != nil {
+		return fmt.Errorf("generating git configs: %w", err)
+	}
+
 	m.updateTmuxEnv(ctx)
 
 	return nil
@@ -104,7 +110,10 @@ func (m *Manager) Refresh() error {
 	if err := m.generateEnvFile(current, ctx); err != nil {
 		return err
 	}
-	return m.generateContextDirs()
+	if err := m.generateContextDirs(); err != nil {
+		return err
+	}
+	return m.GenerateGitConfigs(current)
 }
 
 // generateContextDirs writes a mapping of context→PROJECTS_DIR for shell hooks.
@@ -253,19 +262,6 @@ func (m *Manager) applySymlinks(ctx *ContextDef) error {
 
 		if err := os.Symlink(target, link); err != nil {
 			return fmt.Errorf("creating symlink %s -> %s: %w", link, target, err)
-		}
-	}
-
-	if ctx.Identity.GitConfig != "" {
-		gitDir := filepath.Join(home, ".config", "git")
-		link := filepath.Join(gitDir, "config-current")
-		target := filepath.Join(gitDir, ctx.Identity.GitConfig)
-
-		if _, err := os.Lstat(link); err == nil {
-			os.Remove(link)
-		}
-		if err := os.Symlink(target, link); err != nil {
-			return fmt.Errorf("creating git config symlink: %w", err)
 		}
 	}
 

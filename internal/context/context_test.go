@@ -34,6 +34,8 @@ func setupTestEnv(t *testing.T) string {
 
 	// Create test context files
 	workCtx := `[identity]
+name = "Work User"
+email = "work@example.com"
 git_config = "config-work"
 ssh_key = "id_ed25519_work"
 
@@ -43,9 +45,12 @@ ssh_key = "id_ed25519_work"
 
 [env]
 DOCKER_CONFIG = "~/.docker-work"
+PROJECTS_DIR = "~/projects/work"
 NPM_CONFIG_REGISTRY = "https://nexus.company.com/repository/npm/"
 `
 	personalCtx := `[identity]
+name = "Personal User"
+email = "personal@example.com"
 git_config = "config-personal"
 ssh_key = "id_ed25519_personal"
 
@@ -55,6 +60,7 @@ ssh_key = "id_ed25519_personal"
 
 [env]
 DOCKER_CONFIG = "~/.docker-personal"
+PROJECTS_DIR = "~/projects/personal"
 `
 	os.WriteFile(filepath.Join(dir, "dotfiles", "contexts", "work.toml"), []byte(workCtx), 0o644)
 	os.WriteFile(filepath.Join(dir, "dotfiles", "contexts", "personal.toml"), []byte(personalCtx), 0o644)
@@ -105,13 +111,13 @@ func TestSwitchContext(t *testing.T) {
 		t.Errorf("expected .kube -> .kube-work, got %q", kubeTarget)
 	}
 
-	// Verify git config symlink
-	gitTarget, err := os.Readlink(filepath.Join(dir, ".config", "git", "config-current"))
+	// Verify generated git config
+	gitCfg, err := os.ReadFile(filepath.Join(dir, ".config", "git", "config-work"))
 	if err != nil {
-		t.Fatalf("readlink config-current: %v", err)
+		t.Fatalf("reading config-work: %v", err)
 	}
-	if gitTarget != filepath.Join(dir, ".config", "git", "config-work") {
-		t.Errorf("expected config-current -> config-work, got %q", gitTarget)
+	if !contains(string(gitCfg), "work@example.com") {
+		t.Errorf("config-work missing email:\n%s", gitCfg)
 	}
 
 	// Verify env file
