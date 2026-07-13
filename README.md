@@ -1,5 +1,10 @@
 # dotctl
 
+[![CI](https://github.com/gh-jsoares/dotctl/actions/workflows/ci.yml/badge.svg)](https://github.com/gh-jsoares/dotctl/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/gh-jsoares/dotctl)](https://github.com/gh-jsoares/dotctl/releases/latest)
+[![Go](https://img.shields.io/github/go-mod/go-version/gh-jsoares/dotctl)](go.mod)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A developer environment orchestrator for macOS. Manages context switching between work and personal environments, bootstraps fresh machines, and keeps your system in sync.
 
 > **Note:** This project was vibe coded with [Claude](https://claude.ai) (Anthropic). The entire codebase was generated through conversational AI pair programming.
@@ -98,6 +103,10 @@ make install  # build + copy to ~/.local/bin/
 make release  # cross-compile darwin/arm64 + darwin/amd64
 make clean    # remove artifacts
 ```
+
+## Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 

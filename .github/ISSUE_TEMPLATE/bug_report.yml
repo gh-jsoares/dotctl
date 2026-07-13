@@ -1,0 +1,55 @@
+name: Bug Report
+description: Report something that isn't working correctly
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: "When I run `dotctl sync`, it..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+      placeholder: "I expected dotctl to..."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set context to ...
+        2. Run `dotctl sync`
+        3. See error...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: dotctl version
+      description: Output of `dotctl --version`
+      placeholder: "v0.2.1"
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: macOS version
+      placeholder: "15.2 (Sequoia)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Relevant config (optional)
+      description: Paste any relevant config.toml or plugin.toml (sanitize secrets).
+      render: toml
