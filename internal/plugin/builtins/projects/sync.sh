@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Source context env to get PROJECTS_DIR
-state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/dotctl"
-[[ -f "$state_dir/env" ]] && source "$state_dir/env"
-
-if [[ -z "${PROJECTS_DIR:-}" ]]; then
+contexts_dir="${DOTCTL_DOTFILES_PATH}/contexts"
+if [[ ! -d "$contexts_dir" ]]; then
   exit 0
 fi
 
-mkdir -p "$PROJECTS_DIR"
-echo "Ensured $PROJECTS_DIR exists"
+created=0
+for toml in "$contexts_dir"/*.toml; do
+  [[ -f "$toml" ]] || continue
+  dir=$(grep -E '^PROJECTS_DIR\s*=' "$toml" | sed 's/.*=\s*"//;s/"//' | sed "s|^~/|$HOME/|")
+  [[ -z "$dir" ]] && continue
+  if [[ ! -d "$dir" ]]; then
+    mkdir -p "$dir"
+    echo "Created $dir"
+    ((created++))
+  fi
+done
+
+if ((created == 0)); then
+  echo "All project directories exist"
+fi
