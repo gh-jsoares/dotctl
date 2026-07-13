@@ -5,7 +5,6 @@ description = "Ensure project directories exist for the current context"
 sync = "sync.sh"
 
 [conditions]
-check = "test -n \"$PROJECTS_DIR\""
 
 [ordering]
 after = ["stow"]
