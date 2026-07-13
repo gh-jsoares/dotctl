@@ -2,6 +2,8 @@
 
 A developer environment orchestrator for macOS. Manages context switching between work and personal environments, bootstraps fresh machines, and keeps your system in sync.
 
+> **Note:** This project was vibe coded with [Claude](https://claude.ai) (Anthropic). The entire codebase was generated through conversational AI pair programming.
+
 ## The Problem
 
 If you use one laptop for both work and personal projects, tools leak state across environments:
