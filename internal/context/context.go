@@ -13,9 +13,14 @@ import (
 type ContextDef struct {
 	SSH      SSHConfig         `toml:"ssh"`
 	Identity IdentityConfig    `toml:"identity"`
+	Prompt   PromptConfig      `toml:"prompt"`
 	Symlinks map[string]string `toml:"symlinks"`
 	Env      map[string]string `toml:"env"`
 	Lazy     map[string]string `toml:"lazy"`
+}
+
+type PromptConfig struct {
+	Icon string `toml:"icon"`
 }
 
 type SSHConfig struct {
@@ -272,6 +277,9 @@ func (m *Manager) generateEnvFile(name string, ctx *ContextDef) error {
 	var b strings.Builder
 
 	b.WriteString(fmt.Sprintf("export DOTCTL_CONTEXT=%q\n", name))
+	if ctx.Prompt.Icon != "" {
+		b.WriteString(fmt.Sprintf("export DOTCTL_CONTEXT_ICON=%q\n", ctx.Prompt.Icon))
+	}
 	for k, v := range ctx.Env {
 		v = expandHome(v, home)
 		b.WriteString(fmt.Sprintf("export %s=%q\n", k, v))
