@@ -26,14 +26,14 @@ Sleep 3s
 # Run sync (dotfiles only, no pull)
 Type "dotctl sync --dotfiles-only --no-pull"
 Enter
-Sleep 8s
+Sleep 15s
 
 # List plugins
 Type "dotctl plugins list"
 Enter
-Sleep 2s
+Sleep 3s
 
 # Show help
 Type "dotctl --help"
 Enter
-Sleep 2s
+Sleep 4s
