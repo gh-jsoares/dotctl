@@ -281,6 +281,35 @@ contexts = ["work"]
 sudo = true
 ```
 
+## Builtin Plugins
+
+dotctl ships with a set of builtin plugins embedded in the binary. These run alongside your user plugins and provide common functionality out of the box.
+
+| Plugin | Description | Condition |
+|--------|-------------|-----------|
+| `projects` | Creates `PROJECTS_DIR` directory if set in context env | `PROJECTS_DIR` must be non-empty |
+
+Builtins show as `(builtin)` in `dotctl plugins list`.
+
+### Overriding a builtin
+
+Create a plugin with the same name in your dotfiles. User plugins always take precedence over builtins:
+
+```
+.dotctl/plugins/projects/    ← your version wins
+```
+
+### Disabling plugins
+
+Add to your `~/.config/dotctl/config.toml`:
+
+```toml
+[plugins]
+disabled = ["projects"]
+```
+
+This works for any plugin — builtin or user-defined.
+
 ## CLI Commands
 
 ```bash

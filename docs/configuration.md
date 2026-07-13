@@ -31,6 +31,14 @@ message = "awscreds writes to AWS/kube/docker config for the active context."
 | `dotctl` | `remote` | Git remote URL (used for self-update release lookup) |
 | `machine` | | Machine identifier (for nix-darwin host-specific config) |
 | `guards` | | Array of guarded command definitions (see [Shell Integration](shell-integration.md)) |
+| `plugins` | `disabled` | List of plugin names to skip (builtin or user-defined) |
+
+Example with disabled plugins:
+
+```toml
+[plugins]
+disabled = ["projects"]
+```
 
 ### Resolution order
 
