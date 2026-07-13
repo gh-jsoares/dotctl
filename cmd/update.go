@@ -132,7 +132,23 @@ func fetchLatestRelease(cfg *config.Config) (tag string, assetURL string, err er
 	return release.TagName, "", nil
 }
 
+func isHomebrewInstall() bool {
+	bin, err := os.Executable()
+	if err != nil {
+		return false
+	}
+	resolved, err := filepath.EvalSymlinks(bin)
+	if err != nil {
+		resolved = bin
+	}
+	return strings.Contains(resolved, "Cellar") || strings.Contains(resolved, "homebrew")
+}
+
 func installRelease(tag, downloadURL string) error {
+	if isHomebrewInstall() {
+		return fmt.Errorf("dotctl was installed via Homebrew — run: brew upgrade dotctl")
+	}
+
 	currentBin, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("finding current binary: %w", err)
@@ -183,7 +199,7 @@ func installRelease(tag, downloadURL string) error {
 		return fmt.Errorf("setting permissions: %w", err)
 	}
 
-	if err := os.Rename(tmpBin, currentBin); err != nil {
+	if err := moveFile(tmpBin, currentBin); err != nil {
 		return fmt.Errorf("replacing binary: %w", err)
 	}
 
@@ -206,6 +222,29 @@ func installRelease(tag, downloadURL string) error {
 
 	fmt.Fprintf(os.Stdout, "  %s updated to %s\n", updateGreen.Render("✓"), updateBold.Render(tag))
 	return nil
+}
+
+func moveFile(src, dst string) error {
+	if err := os.Rename(src, dst); err == nil {
+		return nil
+	}
+	// Cross-device fallback: copy + remove
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		out.Close()
+		return err
+	}
+	out.Close()
+	return os.Remove(src)
 }
 
 func extractTarGz(r io.Reader, dest string) error {
