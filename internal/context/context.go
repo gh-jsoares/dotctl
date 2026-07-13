@@ -25,8 +25,10 @@ type SSHConfig struct {
 }
 
 type IdentityConfig struct {
-	GitConfig string `toml:"git_config"`
-	SSHKey    string `toml:"ssh_key"`
+	GitConfig    string `toml:"git_config"`
+	SSHKey       string `toml:"ssh_key"`
+	GPGKey       string `toml:"gpg_key"`
+	GPGKeySource string `toml:"gpg_key_source"`
 }
 
 type SecretResolver func(ref string) (string, error)
@@ -74,6 +76,10 @@ func (m *Manager) Switch(name string) error {
 		return fmt.Errorf("generating env file: %w", err)
 	}
 
+	if err := m.generateContextDirs(); err != nil {
+		return fmt.Errorf("generating context dirs: %w", err)
+	}
+
 	m.updateTmuxEnv(ctx)
 
 	return nil
@@ -90,7 +96,72 @@ func (m *Manager) Refresh() error {
 	if err != nil {
 		return err
 	}
-	return m.generateEnvFile(current, ctx)
+	if err := m.generateEnvFile(current, ctx); err != nil {
+		return err
+	}
+	return m.generateContextDirs()
+}
+
+// generateContextDirs writes a mapping of context→PROJECTS_DIR for shell hooks.
+func (m *Manager) generateContextDirs() error {
+	names, err := m.List()
+	if err != nil {
+		return nil
+	}
+
+	home, _ := os.UserHomeDir()
+	var b strings.Builder
+	for _, name := range names {
+		ctx, err := m.Load(name)
+		if err != nil {
+			continue
+		}
+		if dir, ok := ctx.Env["PROJECTS_DIR"]; ok {
+			dir = expandHome(dir, home)
+			b.WriteString(fmt.Sprintf("%s:%s\n", name, dir))
+		}
+	}
+
+	return os.WriteFile(filepath.Join(m.stateDir, "context-dirs"), []byte(b.String()), 0o644)
+}
+
+// CheckMismatch returns the expected context name if CWD is in a project dir
+// that doesn't match the active context. Returns "" if no mismatch.
+func (m *Manager) CheckMismatch() (expected string, actual string) {
+	current, err := m.Current()
+	if err != nil || current == "" {
+		return "", ""
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", ""
+	}
+
+	names, err := m.List()
+	if err != nil {
+		return "", ""
+	}
+
+	home, _ := os.UserHomeDir()
+	for _, name := range names {
+		ctx, err := m.Load(name)
+		if err != nil {
+			continue
+		}
+		dir, ok := ctx.Env["PROJECTS_DIR"]
+		if !ok {
+			continue
+		}
+		dir = expandHome(dir, home)
+		if strings.HasPrefix(cwd, dir+"/") || cwd == dir {
+			if name != current {
+				return name, current
+			}
+			return "", ""
+		}
+	}
+	return "", ""
 }
 
 func (m *Manager) SetDefault(name string) error {

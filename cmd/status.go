@@ -51,6 +51,11 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		} else {
 			fmt.Fprintf(os.Stdout, "  %s %s\n", statusBold.Render(current), statusDim.Render("(active)"))
 		}
+
+		if expected, actual := mgr.CheckMismatch(); expected != "" {
+			statusRed := lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+			fmt.Fprintf(os.Stdout, "  %s\n", statusRed.Render(fmt.Sprintf("⚠ CWD belongs to %q but active context is %q", expected, actual)))
+		}
 	}
 
 	// Git state

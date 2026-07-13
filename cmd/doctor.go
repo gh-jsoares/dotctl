@@ -33,6 +33,7 @@ func runDoctor(cmd *cobra.Command, args []string) error {
 	checks := []check{
 		{"state directory exists", checkStateDir},
 		{"context is set", checkContextSet},
+		{"context matches CWD", checkContextMismatch},
 		{"env file exists", checkEnvFile},
 		{"symlinks are valid", checkSymlinks},
 		{"required tools installed", checkTools},
@@ -117,6 +118,18 @@ func checkContextSet() error {
 	}
 	if current == "" {
 		return fmt.Errorf("no context set (run: dotctl ctx <name> or dotctl ctx default <name>)")
+	}
+	return nil
+}
+
+func checkContextMismatch() error {
+	mgr, err := context.NewManager()
+	if err != nil {
+		return nil
+	}
+	expected, actual := mgr.CheckMismatch()
+	if expected != "" {
+		return fmt.Errorf("CWD belongs to %q but active context is %q", expected, actual)
 	}
 	return nil
 }
