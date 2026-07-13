@@ -9,6 +9,8 @@ A developer environment orchestrator for macOS. Manages context switching betwee
 
 > **Note:** This project was vibe coded with [Claude](https://claude.ai) (Anthropic). The entire codebase was generated through conversational AI pair programming.
 
+![demo](https://raw.githubusercontent.com/gh-jsoares/dotctl/assets/demo.gif)
+
 ## The Problem
 
 If you use one laptop for both work and personal projects, tools leak state across environments:

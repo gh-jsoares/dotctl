@@ -1,0 +1,62 @@
+name: Demo
+
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths:
+      - "demo.tape"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build dotctl
+        run: |
+          VERSION=$(git describe --tags --always 2>/dev/null || echo "demo")
+          COMMIT=$(git rev-parse --short HEAD)
+          go build -ldflags "-X github.com/gh-jsoares/dotctl/cmd.version=${VERSION} -X github.com/gh-jsoares/dotctl/cmd.commit=${COMMIT}" -o /usr/local/bin/dotctl .
+
+      - name: Install VHS
+        run: brew install vhs
+
+      - name: Setup minimal environment
+        run: |
+          mkdir -p ~/.config/dotctl
+          cat > ~/.config/dotctl/config.toml << EOF
+          machine = "demo"
+          [dotfiles]
+          path = "$HOME/.dotfiles"
+          EOF
+          mkdir -p ~/.dotfiles/stow/zsh/.zshrc
+          mkdir -p ~/.dotfiles/.git
+          mkdir -p ~/.local/state/dotctl
+          echo "personal" > ~/.local/state/dotctl/current-context
+          echo 'export DOTCTL_CONTEXT="personal"' > ~/.local/state/dotctl/env
+
+      - name: Record demo
+        run: vhs demo.tape
+
+      - name: Push to assets branch
+        run: |
+          cp demo.gif /tmp/demo.gif
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin assets || true
+          git checkout --orphan assets-tmp
+          git rm -rf .
+          cp /tmp/demo.gif demo.gif
+          git add demo.gif
+          git commit -m "update demo gif"
+          git branch -M assets-tmp assets
+          git push origin assets --force
