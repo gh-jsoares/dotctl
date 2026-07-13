@@ -71,7 +71,13 @@ dotctl sync
 
 ## Installation
 
-### From release (recommended)
+### Homebrew (recommended)
+
+```bash
+brew install gh-jsoares/tap/dotctl
+```
+
+### From release
 
 ```bash
 curl -sSf https://raw.githubusercontent.com/gh-jsoares/dotctl/main/install.sh | bash
@@ -87,11 +93,12 @@ cd dotctl
 make install  # builds and copies to ~/.local/bin/
 ```
 
-### Self-update
+### Updating
 
 ```bash
-dotctl update               # download latest release from GitHub
-dotctl update --from-source # git pull + go build
+brew upgrade dotctl         # if installed via homebrew
+dotctl update               # self-update from GitHub release
+dotctl update --from-source # rebuild from source
 ```
 
 ## Development

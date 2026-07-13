@@ -123,17 +123,63 @@ dotctl shell-init bash      # print bash integration to stdout
 dotctl shell-init install   # write to ~/.local/share/dotctl/init.zsh
 ```
 
+## dotctl status
+
+Show current environment state at a glance.
+
+```
+dotctl status
+```
+
+Displays:
+- Active context
+- Dotfiles git state (branch, ahead/behind, dirty files)
+- Which sync steps would run
+- Which plugins are active vs skipped
+
 ## dotctl update
 
 Self-update the binary.
 
 ```
 dotctl update                         # download latest release from GitHub
+dotctl update --check                 # only check if an update is available
 dotctl update --from-source           # git pull + go build (from current dir)
 dotctl update --from-source --source-path /opt/dotctl
 ```
 
+| Flag | Description |
+|------|-------------|
+| `--check` | Only check for updates, don't install |
+| `--from-source` | Rebuild from source instead of downloading |
+| `--source-path` | Path to dotctl source repo (with `--from-source`) |
+
 Release-based update requires `dotctl.remote` in config (owner/repo are parsed from the URL). Source-based update defaults to the current directory.
+
+A daily update check runs automatically at the end of `dotctl sync` — if a newer version is available, a notice is printed.
+
+## dotctl completion
+
+Generate shell completion scripts.
+
+```
+dotctl completion bash    # output bash completions
+dotctl completion zsh     # output zsh completions
+dotctl completion fish    # output fish completions
+```
+
+To load completions permanently:
+
+```bash
+# zsh — add to ~/.zshrc or generate to fpath
+source <(dotctl completion zsh)
+
+# bash
+source <(dotctl completion bash)
+
+# fish
+dotctl completion fish | source
+```
 
 ## dotctl version
 
@@ -141,5 +187,5 @@ Print version and commit hash.
 
 ```
 dotctl version
-# dotctl v0.1.0 (abc1234)
+# dotctl v0.3.2 (abc1234)
 ```
