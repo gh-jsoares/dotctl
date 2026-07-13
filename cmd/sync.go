@@ -146,6 +146,10 @@ func runSync(cmd *cobra.Command, args []string) error {
 	failedSteps += pluginFailed
 
 	ui.Summary(totalSteps, failedSteps, time.Since(syncStart))
+
+	// Check for updates once per day
+	CheckForUpdate()
+
 	if err != nil {
 		return err
 	}
