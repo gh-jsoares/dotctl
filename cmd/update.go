@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -119,7 +122,7 @@ func fetchLatestRelease(cfg *config.Config) (tag string, assetURL string, err er
 		return "", "", fmt.Errorf("parsing release: %w", err)
 	}
 
-	assetName := fmt.Sprintf("dotctl_%s_%s", runtime.GOOS, runtime.GOARCH)
+	assetName := fmt.Sprintf("dotctl_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
 	for _, a := range release.Assets {
 		if a.Name == assetName {
 			return release.TagName, a.BrowserDownloadURL, nil
@@ -164,25 +167,85 @@ func installRelease(tag, downloadURL string) error {
 		return fmt.Errorf("download failed: HTTP %d", dlResp.StatusCode)
 	}
 
-	tmpFile := currentBin + ".new"
-	f, err := os.OpenFile(tmpFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	tmpDir, err := os.MkdirTemp("", "dotctl-update-*")
 	if err != nil {
-		return fmt.Errorf("creating temp file: %w", err)
+		return fmt.Errorf("creating temp dir: %w", err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	if err := extractTarGz(dlResp.Body, tmpDir); err != nil {
+		return fmt.Errorf("extracting archive: %w", err)
 	}
 
-	if _, err := io.Copy(f, dlResp.Body); err != nil {
-		f.Close()
-		os.Remove(tmpFile)
-		return fmt.Errorf("writing binary: %w", err)
+	binaryName := fmt.Sprintf("dotctl_%s_%s", runtime.GOOS, runtime.GOARCH)
+	tmpBin := filepath.Join(tmpDir, binaryName)
+	if err := os.Chmod(tmpBin, 0o755); err != nil {
+		return fmt.Errorf("setting permissions: %w", err)
 	}
-	f.Close()
 
-	if err := os.Rename(tmpFile, currentBin); err != nil {
-		os.Remove(tmpFile)
+	if err := os.Rename(tmpBin, currentBin); err != nil {
 		return fmt.Errorf("replacing binary: %w", err)
 	}
 
+	// Install man pages if present
+	manSrc := filepath.Join(tmpDir, "man")
+	if entries, err := os.ReadDir(manSrc); err == nil && len(entries) > 0 {
+		manDest := "/usr/local/share/man/man1"
+		os.MkdirAll(manDest, 0o755)
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".1") {
+				src := filepath.Join(manSrc, e.Name())
+				dst := filepath.Join(manDest, e.Name())
+				data, _ := os.ReadFile(src)
+				if data != nil {
+					os.WriteFile(dst, data, 0o644)
+				}
+			}
+		}
+	}
+
 	fmt.Fprintf(os.Stdout, "  %s updated to %s\n", updateGreen.Render("✓"), updateBold.Render(tag))
+	return nil
+}
+
+func extractTarGz(r io.Reader, dest string) error {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return err
+	}
+	defer gz.Close()
+
+	tr := tar.NewReader(gz)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		target := filepath.Join(dest, filepath.Clean(hdr.Name))
+		if !strings.HasPrefix(target, dest) {
+			continue
+		}
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			os.MkdirAll(target, 0o755)
+		case tar.TypeReg:
+			os.MkdirAll(filepath.Dir(target), 0o755)
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode))
+			if err != nil {
+				return err
+			}
+			if _, err := io.Copy(f, tr); err != nil {
+				f.Close()
+				return err
+			}
+			f.Close()
+		}
+	}
 	return nil
 }
 

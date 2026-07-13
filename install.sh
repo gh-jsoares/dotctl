@@ -4,6 +4,7 @@ set -euo pipefail
 REPO_OWNER="gh-jsoares"
 REPO_NAME="dotctl"
 INSTALL_DIR="${DOTCTL_INSTALL_DIR:-/usr/local/bin}"
+MAN_DIR="${DOTCTL_MAN_DIR:-/usr/local/share/man/man1}"
 
 OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
 ARCH="$(uname -m)"
@@ -14,7 +15,7 @@ case "$ARCH" in
   *) echo "Unsupported architecture: $ARCH" >&2; exit 1 ;;
 esac
 
-ASSET_NAME="dotctl_${OS}_${ARCH}"
+ASSET_NAME="dotctl_${OS}_${ARCH}.tar.gz"
 
 echo "Detecting latest release..."
 RELEASE_URL="https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/releases/latest"
@@ -27,16 +28,32 @@ if [ -z "$DOWNLOAD_URL" ]; then
 fi
 
 echo "Downloading dotctl for ${OS}/${ARCH}..."
-TMP=$(mktemp)
-curl -sSfL -o "$TMP" "$DOWNLOAD_URL"
-chmod +x "$TMP"
+TMP_DIR=$(mktemp -d)
+curl -sSfL -o "${TMP_DIR}/dotctl.tar.gz" "$DOWNLOAD_URL"
+tar xzf "${TMP_DIR}/dotctl.tar.gz" -C "$TMP_DIR"
+
+BINARY="${TMP_DIR}/dotctl_${OS}_${ARCH}"
+chmod +x "$BINARY"
 
 echo "Installing to ${INSTALL_DIR}/dotctl..."
 if [ -w "$INSTALL_DIR" ]; then
-  mv "$TMP" "${INSTALL_DIR}/dotctl"
+  mv "$BINARY" "${INSTALL_DIR}/dotctl"
 else
-  sudo mv "$TMP" "${INSTALL_DIR}/dotctl"
+  sudo mv "$BINARY" "${INSTALL_DIR}/dotctl"
 fi
+
+if [ -d "${TMP_DIR}/man" ]; then
+  echo "Installing man pages to ${MAN_DIR}..."
+  if [ -w "$(dirname "$MAN_DIR")" ]; then
+    mkdir -p "$MAN_DIR"
+    cp "${TMP_DIR}"/man/*.1 "$MAN_DIR/"
+  else
+    sudo mkdir -p "$MAN_DIR"
+    sudo cp "${TMP_DIR}"/man/*.1 "$MAN_DIR/"
+  fi
+fi
+
+rm -rf "$TMP_DIR"
 
 echo "dotctl installed successfully."
 echo "Run 'dotctl bootstrap' to set up your machine."

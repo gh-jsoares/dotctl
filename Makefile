@@ -2,7 +2,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -ldflags "-X github.com/gh-jsoares/dotctl/cmd.version=$(VERSION) -X github.com/gh-jsoares/dotctl/cmd.commit=$(COMMIT)"
 
-.PHONY: build install test clean release
+.PHONY: build install test clean release man
 
 build:
 	go build $(LDFLAGS) -o dotctl .
@@ -16,6 +16,9 @@ test:
 clean:
 	rm -f dotctl
 	rm -rf dist/
+
+man: build
+	./dotctl man --dir man
 
 release: clean
 	mkdir -p dist
