@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/gh-jsoares/dotctl/internal/config"
@@ -41,7 +40,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{
 			ID:   "git-pull",
 			Name: "git pull",
-			Run:  orchestrator.GitPull,
+			RunW: orchestrator.GitPullW,
 			Enabled: func(cfg *config.Config) bool {
 				return !syncNoPull && orchestrator.HasGitRepo(cfg)
 			},
@@ -49,13 +48,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{
 			ID:      "submodule-update",
 			Name:    "submodule update",
-			Run:     orchestrator.SubmoduleUpdate,
+			RunW:    orchestrator.SubmoduleUpdateW,
 			Enabled: orchestrator.HasSubmodules,
 		},
 		{
 			ID:   "nix-darwin",
 			Name: "nix-darwin switch",
-			Run:  orchestrator.NixDarwinSwitch,
+			RunW: orchestrator.NixDarwinSwitchW,
 			Enabled: func(cfg *config.Config) bool {
 				return !syncDotfilesOnly && orchestrator.HasFlake(cfg)
 			},
@@ -63,7 +62,7 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{
 			ID:   "commit-flake-lock",
 			Name: "commit flake.lock",
-			Run:  orchestrator.CommitLockfile,
+			RunW: orchestrator.CommitLockfileW,
 			Enabled: func(cfg *config.Config) bool {
 				return !syncDotfilesOnly && orchestrator.HasDirtyLockfile(cfg)
 			},
@@ -71,13 +70,13 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{
 			ID:      "stow",
 			Name:    "stow dotfiles",
-			Run:     orchestrator.StowAll,
+			RunW:    orchestrator.StowAllW,
 			Enabled: orchestrator.HasStow,
 		},
 		{
 			ID:   "sheldon",
 			Name: "sheldon lock",
-			Run:  orchestrator.SheldonLock,
+			RunW: orchestrator.SheldonLockW,
 			Enabled: func(cfg *config.Config) bool {
 				return !syncDotfilesOnly && orchestrator.HasSheldon(cfg)
 			},
@@ -85,70 +84,81 @@ func runSync(cmd *cobra.Command, args []string) error {
 		{
 			ID:   "mise",
 			Name: "mise install",
-			Run:  orchestrator.MiseInstall,
+			RunW: orchestrator.MiseInstallW,
 			Enabled: func(cfg *config.Config) bool {
 				return !syncDotfilesOnly && orchestrator.HasMise(cfg)
 			},
 		},
 	}
 
-	// Run core steps
-	ui.Section("Core")
+	// Count enabled steps for progress
+	enabledSteps := []orchestrator.Step{}
+	for _, step := range steps {
+		if step.Enabled(cfg) {
+			enabledSteps = append(enabledSteps, step)
+		}
+	}
+
+	ui.SectionWithCount("Core", len(enabledSteps))
 	totalSteps := 0
 	failedSteps := 0
+	coreIdx := 0
 
 	for _, step := range steps {
 		if !step.Enabled(cfg) {
-			st := ui.StepStart(step.Name)
-			st.Skip("not applicable")
 			continue
 		}
 
+		coreIdx++
 		totalSteps++
-		st := ui.StepStart(step.Name)
-		if err := step.Run(cfg); err != nil {
+		st := ui.StepStartWithCounter(step.Name, coreIdx, len(enabledSteps))
+		st.StartSpin()
+
+		pipe := ui.NewPipeCmd(st)
+		if err := orchestrator.RunStep(step, cfg, pipe.Writer()); err != nil {
+			pipe.Flush()
 			st.Fail(err)
 			failedSteps++
 			ui.Summary(totalSteps, failedSteps, time.Since(syncStart))
 			return fmt.Errorf("%s failed: %w", step.Name, err)
 		}
+		pipe.Flush()
 		st.Success()
 	}
 
 	// Run plugins
-	pluginFailed, err := runPluginsUI(cfg, "sync")
-	if err != nil {
-		failedSteps += pluginFailed
-		ui.Summary(totalSteps+pluginFailed, failedSteps, time.Since(syncStart))
-		return err
-	}
-	totalSteps += pluginFailed
+	pluginRan, pluginFailed, err := runPluginsUI(cfg, "sync")
+	totalSteps += pluginRan
+	failedSteps += pluginFailed
 
 	ui.Summary(totalSteps, failedSteps, time.Since(syncStart))
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 func runPlugins(cfg *config.Config, hook string) error {
-	_, err := runPluginsUI(cfg, hook)
+	_, _, err := runPluginsUI(cfg, hook)
 	return err
 }
 
-func runPluginsUI(cfg *config.Config, hook string) (int, error) {
+func runPluginsUI(cfg *config.Config, hook string) (int, int, error) {
 	plugins, err := plugin.Discover(cfg)
 	if err != nil {
-		return 0, fmt.Errorf("discovering plugins: %w", err)
+		return 0, 0, fmt.Errorf("discovering plugins: %w", err)
 	}
 	if len(plugins) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 
 	if err := plugin.Validate(plugins); err != nil {
-		return 0, fmt.Errorf("validating plugins: %w", err)
+		return 0, 0, fmt.Errorf("validating plugins: %w", err)
 	}
 
 	filtered := plugin.FilterByHook(plugins, hook)
 	if len(filtered) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 
 	var currentContext string
@@ -158,25 +168,26 @@ func runPluginsUI(cfg *config.Config, hook string) (int, error) {
 
 	enabled := plugin.EvaluateConditions(filtered, cfg, currentContext)
 	if len(enabled) == 0 {
-		return 0, nil
+		return 0, 0, nil
 	}
 
 	ordered, err := plugin.ResolveOrder(enabled)
 	if err != nil {
-		return 0, fmt.Errorf("resolving plugin order: %w", err)
+		return 0, 0, fmt.Errorf("resolving plugin order: %w", err)
 	}
 
-	ui.Section("Plugins")
+	ui.SectionWithCount("Plugins", len(ordered))
 	ran := 0
+	failed := 0
 
-	for _, p := range ordered {
+	for i, p := range ordered {
 		ran++
-		st := ui.StepStart(p.Name)
+		st := ui.StepStartWithCounter(p.Name, i+1, len(ordered))
+		st.StartSpin()
 
-		spinner := ui.NewSpinner(os.Stderr, p.Name)
-		spinner.Start()
-		execErr := plugin.Execute(p, hook, cfg, currentContext)
-		spinner.Stop()
+		pipe := ui.NewPipeCmd(st)
+		execErr := plugin.ExecuteWithWriter(p, hook, cfg, currentContext, pipe.Writer())
+		pipe.Flush()
 
 		if execErr != nil {
 			if p.Options.ContinueOnError {
@@ -184,10 +195,11 @@ func runPluginsUI(cfg *config.Config, hook string) (int, error) {
 				continue
 			}
 			st.Fail(execErr)
-			return ran, fmt.Errorf("plugin %s failed: %w", p.Name, execErr)
+			failed++
+			return ran, failed, fmt.Errorf("plugin %s failed: %w", p.Name, execErr)
 		}
 		st.Success()
 	}
 
-	return ran, nil
+	return ran, failed, nil
 }

@@ -3,6 +3,7 @@ package plugin
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,6 +13,10 @@ import (
 )
 
 func Execute(p *Plugin, hook string, cfg *config.Config, currentContext string) error {
+	return ExecuteWithWriter(p, hook, cfg, currentContext, nil)
+}
+
+func ExecuteWithWriter(p *Plugin, hook string, cfg *config.Config, currentContext string, w io.Writer) error {
 	var script string
 	switch hook {
 	case "sync":
@@ -48,8 +53,13 @@ func Execute(p *Plugin, hook string, cfg *config.Config, currentContext string) 
 	}
 
 	cmd.Dir = resolveWorkdir(p, cfg)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	if w != nil {
+		cmd.Stdout = w
+		cmd.Stderr = w
+	} else {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
 	cmd.Stdin = os.Stdin
 	cmd.Env = buildEnv(p, cfg, currentContext, hook)
 

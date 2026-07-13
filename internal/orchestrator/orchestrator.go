@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -16,26 +17,43 @@ type Step struct {
 	ID      string
 	Name    string
 	Run     func(cfg *config.Config) error
+	RunW    func(cfg *config.Config, w io.Writer) error
 	Enabled func(cfg *config.Config) bool
 }
 
+// RunStep executes a step, piping output through w if the step supports it.
+func RunStep(step Step, cfg *config.Config, w io.Writer) error {
+	if step.RunW != nil {
+		return step.RunW(cfg, w)
+	}
+	return step.Run(cfg)
+}
+
 func GitPull(cfg *config.Config) error {
+	return GitPullW(cfg, os.Stdout)
+}
+
+func GitPullW(cfg *config.Config, w io.Writer) error {
 	cmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "pull", "--ff-only")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = w
+	cmd.Stderr = w
 	return cmd.Run()
 }
 
 func SubmoduleUpdate(cfg *config.Config) error {
-	sync := exec.Command("git", "-C", cfg.Dotfiles.Path, "submodule", "sync")
-	sync.Stdout = os.Stdout
-	sync.Stderr = os.Stderr
-	if err := sync.Run(); err != nil {
+	return SubmoduleUpdateW(cfg, os.Stdout)
+}
+
+func SubmoduleUpdateW(cfg *config.Config, w io.Writer) error {
+	syncCmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "submodule", "sync")
+	syncCmd.Stdout = w
+	syncCmd.Stderr = w
+	if err := syncCmd.Run(); err != nil {
 		return err
 	}
 	cmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "submodule", "update", "--init", "--depth", "1")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = w
+	cmd.Stderr = w
 	return cmd.Run()
 }
 
@@ -52,6 +70,10 @@ func HasGitRepo(cfg *config.Config) bool {
 }
 
 func CommitLockfile(cfg *config.Config) error {
+	return CommitLockfileW(cfg, os.Stdout)
+}
+
+func CommitLockfileW(cfg *config.Config, w io.Writer) error {
 	statusCmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "status", "--porcelain", "flake.lock")
 	out, err := statusCmd.Output()
 	if err != nil || len(out) == 0 {
@@ -59,22 +81,22 @@ func CommitLockfile(cfg *config.Config) error {
 	}
 
 	addCmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "add", "flake.lock")
-	addCmd.Stdout = os.Stdout
-	addCmd.Stderr = os.Stderr
+	addCmd.Stdout = w
+	addCmd.Stderr = w
 	if err := addCmd.Run(); err != nil {
 		return err
 	}
 
 	commitCmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "commit", "-m", "chore: update flake.lock")
-	commitCmd.Stdout = os.Stdout
-	commitCmd.Stderr = os.Stderr
+	commitCmd.Stdout = w
+	commitCmd.Stderr = w
 	if err := commitCmd.Run(); err != nil {
 		return err
 	}
 
 	pushCmd := exec.Command("git", "-C", cfg.Dotfiles.Path, "push")
-	pushCmd.Stdout = os.Stdout
-	pushCmd.Stderr = os.Stderr
+	pushCmd.Stdout = w
+	pushCmd.Stderr = w
 	return pushCmd.Run()
 }
 
@@ -85,6 +107,10 @@ func HasDirtyLockfile(cfg *config.Config) bool {
 }
 
 func NixDarwinSwitch(cfg *config.Config) error {
+	return NixDarwinSwitchW(cfg, os.Stdout)
+}
+
+func NixDarwinSwitchW(cfg *config.Config, w io.Writer) error {
 	flakePath := cfg.Dotfiles.Path
 	flakeFile := filepath.Join(flakePath, "flake.nix")
 
@@ -99,13 +125,17 @@ func NixDarwinSwitch(cfg *config.Config) error {
 	ref := fmt.Sprintf("%s#%s", flakePath, hostname)
 
 	cmd := exec.Command("sudo", "darwin-rebuild", "switch", "--flake", ref)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = w
+	cmd.Stderr = w
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
 
 func StowAll(cfg *config.Config) error {
+	return StowAllW(cfg, os.Stdout)
+}
+
+func StowAllW(cfg *config.Config, w io.Writer) error {
 	stowDir := filepath.Join(cfg.Dotfiles.Path, "stow")
 	if _, err := os.Stat(stowDir); err != nil {
 		return fmt.Errorf("no stow/ directory found at %s (skipping)", stowDir)
@@ -150,8 +180,8 @@ func StowAll(cfg *config.Config) error {
 	// Run stow for real
 	realArgs := append([]string{"-R", "-d", stowDir, "-t", home}, packages...)
 	cmd := exec.Command("stow", realArgs...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = w
+	cmd.Stderr = w
 	return cmd.Run()
 }
 
@@ -240,16 +270,24 @@ func resolveConflicts(conflicts []stowConflict, stowDir, home string) (bool, err
 }
 
 func SheldonLock(cfg *config.Config) error {
+	return SheldonLockW(cfg, os.Stdout)
+}
+
+func SheldonLockW(cfg *config.Config, w io.Writer) error {
 	cmd := exec.Command("sheldon", "lock", "--update")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = w
+	cmd.Stderr = w
 	return cmd.Run()
 }
 
 func MiseInstall(cfg *config.Config) error {
+	return MiseInstallW(cfg, os.Stdout)
+}
+
+func MiseInstallW(cfg *config.Config, w io.Writer) error {
 	cmd := exec.Command("mise", "install")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = w
+	cmd.Stderr = w
 	return cmd.Run()
 }
 
