@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.0.1 — 2026-07-27
+
+### Added
+
+- multi-account 1Password support and secrets set/list commands
+
+### Documentation
+
+- update changelog for v1.0.0 [skip ci]
+
+### Fixed
+
+- handle .tar.gz release assets in self-update
+
 ## 1.0.0 — 2026-07-13
 
 ### Documentation
