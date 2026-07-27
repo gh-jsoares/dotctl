@@ -122,9 +122,9 @@ func fetchLatestRelease(cfg *config.Config) (tag string, assetURL string, err er
 		return "", "", fmt.Errorf("parsing release: %w", err)
 	}
 
-	assetName := fmt.Sprintf("dotctl_%s_%s.tar.gz", runtime.GOOS, runtime.GOARCH)
+	assetBase := fmt.Sprintf("dotctl_%s_%s", runtime.GOOS, runtime.GOARCH)
 	for _, a := range release.Assets {
-		if a.Name == assetName {
+		if a.Name == assetBase || a.Name == assetBase+".tar.gz" {
 			return release.TagName, a.BrowserDownloadURL, nil
 		}
 	}
@@ -132,23 +132,7 @@ func fetchLatestRelease(cfg *config.Config) (tag string, assetURL string, err er
 	return release.TagName, "", nil
 }
 
-func isHomebrewInstall() bool {
-	bin, err := os.Executable()
-	if err != nil {
-		return false
-	}
-	resolved, err := filepath.EvalSymlinks(bin)
-	if err != nil {
-		resolved = bin
-	}
-	return strings.Contains(resolved, "Cellar") || strings.Contains(resolved, "homebrew")
-}
-
 func installRelease(tag, downloadURL string) error {
-	if isHomebrewInstall() {
-		return fmt.Errorf("dotctl was installed via Homebrew — run: brew upgrade dotctl")
-	}
-
 	currentBin, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("finding current binary: %w", err)
@@ -183,108 +167,63 @@ func installRelease(tag, downloadURL string) error {
 		return fmt.Errorf("download failed: HTTP %d", dlResp.StatusCode)
 	}
 
-	tmpDir, err := os.MkdirTemp("", "dotctl-update-*")
-	if err != nil {
-		return fmt.Errorf("creating temp dir: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
+	tmpFile := currentBin + ".new"
 
-	if err := extractTarGz(dlResp.Body, tmpDir); err != nil {
-		return fmt.Errorf("extracting archive: %w", err)
-	}
-
-	binaryName := fmt.Sprintf("dotctl_%s_%s", runtime.GOOS, runtime.GOARCH)
-	tmpBin := filepath.Join(tmpDir, binaryName)
-	if err := os.Chmod(tmpBin, 0o755); err != nil {
-		return fmt.Errorf("setting permissions: %w", err)
-	}
-
-	if err := moveFile(tmpBin, currentBin); err != nil {
-		return fmt.Errorf("replacing binary: %w", err)
-	}
-
-	// Install man pages if present
-	manSrc := filepath.Join(tmpDir, "man")
-	if entries, err := os.ReadDir(manSrc); err == nil && len(entries) > 0 {
-		manDest := "/usr/local/share/man/man1"
-		os.MkdirAll(manDest, 0o755)
-		for _, e := range entries {
-			if strings.HasSuffix(e.Name(), ".1") {
-				src := filepath.Join(manSrc, e.Name())
-				dst := filepath.Join(manDest, e.Name())
-				data, _ := os.ReadFile(src)
-				if data != nil {
-					os.WriteFile(dst, data, 0o644)
+	var binReader io.Reader = dlResp.Body
+	if strings.HasSuffix(downloadURL, ".tar.gz") {
+		gr, err := gzip.NewReader(dlResp.Body)
+		if err != nil {
+			return fmt.Errorf("decompressing: %w", err)
+		}
+		defer gr.Close()
+		tr := tar.NewReader(gr)
+		found := false
+		for {
+			hdr, err := tr.Next()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				return fmt.Errorf("reading tarball: %w", err)
+			}
+			if hdr.Typeflag == tar.TypeReg && filepath.Base(hdr.Name) == filepath.Base(currentBin) {
+				found = true
+				binReader = tr
+				break
+			}
+		}
+		if !found {
+			for {
+				hdr, err := tr.Next()
+				if err != nil {
+					return fmt.Errorf("no binary found in tarball")
+				}
+				if hdr.Typeflag == tar.TypeReg {
+					binReader = tr
+					break
 				}
 			}
 		}
 	}
 
+	f, err := os.OpenFile(tmpFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
+	if err != nil {
+		return fmt.Errorf("creating temp file: %w", err)
+	}
+
+	if _, err := io.Copy(f, binReader); err != nil {
+		f.Close()
+		os.Remove(tmpFile)
+		return fmt.Errorf("writing binary: %w", err)
+	}
+	f.Close()
+
+	if err := os.Rename(tmpFile, currentBin); err != nil {
+		os.Remove(tmpFile)
+		return fmt.Errorf("replacing binary: %w", err)
+	}
+
 	fmt.Fprintf(os.Stdout, "  %s updated to %s\n", updateGreen.Render("✓"), updateBold.Render(tag))
-	return nil
-}
-
-func moveFile(src, dst string) error {
-	if err := os.Rename(src, dst); err == nil {
-		return nil
-	}
-	// Cross-device fallback: copy + remove
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		out.Close()
-		return err
-	}
-	out.Close()
-	return os.Remove(src)
-}
-
-func extractTarGz(r io.Reader, dest string) error {
-	gz, err := gzip.NewReader(r)
-	if err != nil {
-		return err
-	}
-	defer gz.Close()
-
-	tr := tar.NewReader(gz)
-	for {
-		hdr, err := tr.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return err
-		}
-
-		target := filepath.Join(dest, filepath.Clean(hdr.Name))
-		if !strings.HasPrefix(target, dest) {
-			continue
-		}
-
-		switch hdr.Typeflag {
-		case tar.TypeDir:
-			os.MkdirAll(target, 0o755)
-		case tar.TypeReg:
-			os.MkdirAll(filepath.Dir(target), 0o755)
-			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(hdr.Mode))
-			if err != nil {
-				return err
-			}
-			if _, err := io.Copy(f, tr); err != nil {
-				f.Close()
-				return err
-			}
-			f.Close()
-		}
-	}
 	return nil
 }
 
