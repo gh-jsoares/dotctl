@@ -11,12 +11,13 @@ import (
 )
 
 type ContextDef struct {
-	SSH      SSHConfig         `toml:"ssh"`
-	Identity IdentityConfig    `toml:"identity"`
-	Prompt   PromptConfig      `toml:"prompt"`
-	Symlinks map[string]string `toml:"symlinks"`
-	Env      map[string]string `toml:"env"`
-	Lazy     map[string]string `toml:"lazy"`
+	OPAccount string            `toml:"op_account"`
+	SSH       SSHConfig         `toml:"ssh"`
+	Identity  IdentityConfig    `toml:"identity"`
+	Prompt    PromptConfig      `toml:"prompt"`
+	Symlinks  map[string]string `toml:"symlinks"`
+	Env       map[string]string `toml:"env"`
+	Lazy      map[string]string `toml:"lazy"`
 }
 
 type PromptConfig struct {
@@ -39,11 +40,13 @@ type IdentityConfig struct {
 }
 
 type SecretResolver func(ref string) (string, error)
+type SecretResolverFactory func(account string) SecretResolver
 
 type Manager struct {
-	cfg            *config.Config
-	stateDir       string
-	ResolveSecret  SecretResolver
+	cfg                   *config.Config
+	stateDir              string
+	ResolveSecret         SecretResolver
+	ResolveSecretForAccount SecretResolverFactory
 }
 
 func NewManager() (*Manager, error) {
@@ -282,14 +285,17 @@ func (m *Manager) generateEnvFile(name string, ctx *ContextDef) error {
 	}
 
 	// Resolve lazy secrets and cache them
-	if len(ctx.Lazy) > 0 && m.ResolveSecret != nil {
-		for k, ref := range ctx.Lazy {
-			val, err := m.ResolveSecret(ref)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "  ⚠ %s: %v (skipped)\n", k, err)
-				continue
+	if len(ctx.Lazy) > 0 {
+		resolver := m.resolverForContext(ctx)
+		if resolver != nil {
+			for k, ref := range ctx.Lazy {
+				val, err := resolver(ref)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "  ⚠ %s: %v (skipped)\n", k, err)
+					continue
+				}
+				b.WriteString(fmt.Sprintf("export %s=%q\n", k, val))
 			}
-			b.WriteString(fmt.Sprintf("export %s=%q\n", k, val))
 		}
 	}
 
@@ -327,6 +333,13 @@ func (m *Manager) defaultContext() (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+func (m *Manager) resolverForContext(ctx *ContextDef) SecretResolver {
+	if ctx.OPAccount != "" && m.ResolveSecretForAccount != nil {
+		return m.ResolveSecretForAccount(ctx.OPAccount)
+	}
+	return m.ResolveSecret
 }
 
 func expandHome(path, home string) string {

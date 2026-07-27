@@ -56,6 +56,9 @@ func runCtx(cmd *cobra.Command, args []string) error {
 
 	provider := secrets.DefaultProvider()
 	mgr.ResolveSecret = provider.Get
+	mgr.ResolveSecretForAccount = func(account string) context.SecretResolver {
+		return secrets.ProviderWithAccount(account).Get
+	}
 
 	if err := mgr.Switch(name); err != nil {
 		return err

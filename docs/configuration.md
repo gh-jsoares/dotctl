@@ -58,10 +58,12 @@ Context files live in your dotfiles repo at `contexts/<name>.toml`.
 ### Example: `contexts/work.toml`
 
 ```toml
+op_account = "company.1password.com"
+
 [ssh]
 host = "work.github.com"
 github_user = "youruser-work"
-key_source = "op://Work/SSH Key/private key"
+key_source = "op://dotctl/ssh-key-work/private_key"
 
 [identity]
 git_config = "config-work"
@@ -76,15 +78,18 @@ DOCKER_CONFIG = "~/.docker-work"
 NPM_CONFIG_REGISTRY = "https://nexus.company.com/repository/npm/"
 
 [lazy]
-ARTIFACTORY_TOKEN = "op://Work/Artifactory/token"
+ARTIFACTORY_TOKEN = "op://dotctl/artifactory/token"
 ```
 
 ### Example: `contexts/personal.toml`
 
 ```toml
+op_account = "my.1password.com"
+
 [ssh]
 host = "personal.github.com"
 github_user = "youruser"
+key_source = "op://dotctl/ssh-key-personal/private_key"
 
 [identity]
 git_config = "config-personal"
@@ -100,6 +105,12 @@ DOCKER_CONFIG = "~/.docker-personal"
 
 ### Sections
 
+#### Top-level fields
+
+| Field | Description |
+|-------|-------------|
+| `op_account` | 1Password account identifier (e.g., `my.1password.com`). Used for all `op` commands in this context. Also serves as the account alias — you can pass the context name to `--account` flags. |
+
 #### `[ssh]`
 
 SSH configuration for this context's GitHub access.
@@ -108,9 +119,9 @@ SSH configuration for this context's GitHub access.
 |-------|-------------|
 | `host` | SSH host alias (e.g., `personal.github.com`) |
 | `github_user` | GitHub username for this identity |
-| `key_source` | 1Password reference for retrieving the SSH key (optional) |
+| `key_source` | `op://` reference for the SSH private key (optional) |
 
-If `key_source` is set, bootstrap will retrieve the private key from 1Password. Otherwise it generates a new key and prompts you to add it to GitHub.
+If `key_source` is set, bootstrap will retrieve the private key from 1Password. If retrieval fails (key doesn't exist yet), bootstrap generates a new key and saves it back to 1Password at the same reference. Secrets are stored in the `dotctl` vault.
 
 #### `[identity]`
 

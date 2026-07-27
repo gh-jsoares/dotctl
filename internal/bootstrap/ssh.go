@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gh-jsoares/dotctl/internal/context"
+	"github.com/gh-jsoares/dotctl/internal/secrets"
 )
 
 type SSHKeyInfo struct {
@@ -157,7 +158,7 @@ func SetupSSHFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 			if _, err := exec.LookPath("op"); err == nil {
 				if _, err := os.Stat(keyPath); err != nil {
 					fmt.Printf("  Retrieving SSH key for %q from 1Password...\n", name)
-					if err := retrieveKeyFromOP(ctx.SSH.KeySource, keyPath); err != nil {
+					if err := retrieveKeyFromOP(ctx.SSH.KeySource, keyPath, ctx.OPAccount); err != nil {
 						fmt.Printf("  ⚠ Could not retrieve from 1Password: %v\n", err)
 						fmt.Printf("  Falling back to key generation.\n")
 					} else {
@@ -182,6 +183,18 @@ func SetupSSHFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 			return fmt.Errorf("generating SSH key for %q: %w", name, err)
 		}
 
+		// Save to 1Password if key_source is configured and op is available
+		if ctx.SSH.KeySource != "" {
+			if _, err := exec.LookPath("op"); err == nil {
+				fmt.Printf("  Saving SSH key for %q to 1Password...\n", name)
+				if err := saveKeyToOP(ctx.SSH.KeySource, keyPath, ctx.OPAccount); err != nil {
+					fmt.Printf("  ⚠ Could not save to 1Password: %v\n", err)
+				} else {
+					fmt.Printf("  ✓ Key saved to 1Password.\n")
+				}
+			}
+		}
+
 		keyInfo := SSHKeyInfo{Label: name, Host: ctx.SSH.Host, KeyFile: keyPath}
 		keys = append(keys, keyInfo)
 
@@ -203,8 +216,13 @@ func SetupSSHFromContexts(reader *bufio.Reader, contexts map[string]*context.Con
 	return nil
 }
 
-func retrieveKeyFromOP(ref, destPath string) error {
-	out, err := exec.Command("op", "read", ref).Output()
+func retrieveKeyFromOP(ref, destPath, account string) error {
+	args := []string{"read", ref}
+	if account != "" {
+		args = append(args, "--account", account)
+	}
+
+	out, err := exec.Command("op", args...).Output()
 	if err != nil {
 		return err
 	}
@@ -220,4 +238,14 @@ func retrieveKeyFromOP(ref, destPath string) error {
 		return fmt.Errorf("deriving pubkey: %w", err)
 	}
 	return os.WriteFile(destPath+".pub", pub, 0o644)
+}
+
+func saveKeyToOP(ref, keyPath, account string) error {
+	privateKey, err := os.ReadFile(keyPath)
+	if err != nil {
+		return err
+	}
+
+	provider := secrets.ProviderWithAccount(account)
+	return provider.Set(ref, string(privateKey), "SSH Key")
 }

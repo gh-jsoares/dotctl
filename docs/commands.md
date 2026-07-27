@@ -100,19 +100,39 @@ context = "work"
 
 ## dotctl secrets
 
-Retrieve secrets from 1Password.
+Manage secrets in 1Password. All subcommands accept `--account` which can be a 1Password account URL (e.g., `my.1password.com`) or a context name (e.g., `work`, `personal`) that resolves to the context's `op_account`.
+
+Secrets are stored in the `dotctl` vault by default.
 
 ```
-dotctl secrets get "op://Vault/Item/field"   # retrieve a single secret
-dotctl secrets env                            # resolve all [lazy] refs for current context
+dotctl secrets get <reference>               # retrieve a single secret
+dotctl secrets set <reference> <value>       # store a secret
+dotctl secrets list [vault]                  # list items (defaults to "dotctl" vault)
+dotctl secrets env                           # resolve all [lazy] refs for current context
 ```
 
-`secrets env` outputs `export` statements. Use it to manually refresh cached secrets:
+| Flag | Applies to | Description |
+|------|-----------|-------------|
+| `--account` | all | 1Password account or context name |
+| `--category` | set | Item category: "SSH Key", "API Credentials", "Password", "Secure Note", etc. (default: "Secure Note") |
+
+### Examples
+
 ```bash
+# Get a secret from the personal account
+dotctl secrets get op://dotctl/github-token/credential --account personal
+
+# Store an API key as API Credentials
+dotctl secrets set op://dotctl/openai/api_key "sk-..." --account personal --category "API Credentials"
+
+# List all items in the dotctl vault for work
+dotctl secrets list --account work
+
+# Refresh lazy secrets for current context
 eval "$(dotctl secrets env)"
 ```
 
-Note: lazy secrets are automatically resolved and cached during `ctx switch`. This command is for manual refresh only (e.g., after a secret rotates).
+Note: lazy secrets are automatically resolved and cached during `ctx switch`. The `secrets env` command is for manual refresh only (e.g., after a secret rotates).
 
 ## dotctl shell-init
 
